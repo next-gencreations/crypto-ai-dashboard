@@ -26,6 +26,51 @@ function timeLeft(isoUtc) {
   return m > 0 ? `${m}m ${r}s` : `${r}s`;
 }
 
+/* ---------- normalize candles from API ---------- */
+/**
+ * Accepts candles in either format:
+ *  A) { t, o, h, l, c }
+ *  B) { t, open, high, low, close }
+ * Also coerces string numbers -> numbers.
+ */
+function normalizeCandles(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr
+    .map((c) => {
+      const t = c?.t || c?.time_utc || c?.time || "";
+      const o = c?.o ?? c?.open;
+      const h = c?.h ?? c?.high;
+      const l = c?.l ?? c?.low;
+      const cl = c?.c ?? c?.close;
+
+      const on = Number(o);
+      const hn = Number(h);
+      const ln = Number(l);
+      const cn = Number(cl);
+
+      if (!t || [on, hn, ln, cn].some((x) => Number.isNaN(x))) return null;
+
+      return { t, o: on, h: hn, l: ln, c: cn };
+    })
+    .filter(Boolean);
+}
+
+/* ---------- safe markets display ---------- */
+function fmtMarkets(m) {
+  try {
+    if (Array.isArray(m)) return m.join(", ") || "—";
+    if (typeof m === "string") {
+      // might be a JSON string like ["BTCUSDT","ETHUSDT"]
+      const parsed = JSON.parse(m);
+      if (Array.isArray(parsed)) return parsed.join(", ") || "—";
+      return m || "—";
+    }
+    return "—";
+  } catch {
+    return typeof m === "string" ? m : "—";
+  }
+}
+
 /* --------- simple line chart (equity) --------- */
 function MiniLineChart({ points, height = 150 }) {
   const w = 520;
@@ -67,7 +112,7 @@ function CandleChart({ candles, height = 240 }) {
   const h = height;
   const data = (candles || []).slice(-70);
 
-  if (!data.length) {
+  if (data.length < 2) {
     return <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>NO CANDLES YET</div>;
   }
 
@@ -90,6 +135,8 @@ function CandleChart({ candles, height = 240 }) {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
       <line x1="10" y1={h - 10} x2={w - 10} y2={h - 10} stroke="rgba(119,255,154,0.18)" />
+      <line x1="10" y1={h / 2} x2={w - 10} y2={h / 2} stroke="rgba(119,255,154,0.10)" />
+
       {data.map((c, i) => {
         const x = 10 + i * (bw + 1);
         const yO = toY(c.o);
@@ -103,8 +150,15 @@ function CandleChart({ candles, height = 240 }) {
         const bodyH = Math.max(2, bodyBot - bodyTop);
 
         return (
-          <g key={c.t}>
-            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke="rgba(119,255,154,0.55)" strokeWidth="1.1" />
+          <g key={`${c.t}-${i}`}>
+            <line
+              x1={x + bw / 2}
+              y1={yH}
+              x2={x + bw / 2}
+              y2={yL}
+              stroke="rgba(119,255,154,0.55)"
+              strokeWidth="1.1"
+            />
             <rect
               x={x}
               y={bodyTop}
@@ -161,8 +215,10 @@ export default function Page() {
       setPayload(json);
       setLastFetchAt(new Date());
 
+      // OHLC endpoint
       const o = await fetchJson(`${apiBase}/ohlc?market=${marketForCandles}&interval=${intervalSec}&limit=200`, signal);
-      setOhlc(o?.candles || []);
+      const normalized = normalizeCandles(o?.candles || o || []);
+      setOhlc(normalized);
     } catch (e) {
       if (e?.name === "AbortError") return;
       setErr(String(e?.message || e));
@@ -212,18 +268,20 @@ export default function Page() {
     return "ACTIVE";
   }, [stateMode]);
 
+  const tfLabel = intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : intervalSec === 900 ? "15M" : `${Math.floor(intervalSec / 60)}M`;
+
   return (
     <div className="pip-crt">
       <div className="pip-shell">
         <div className="pip-topbar">
-          <div>
+          <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
             <div className="pip-sub wrap">
               API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last: {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="pip-topbar-right">
             <span className="pip-badge">{statusBadge}</span>
             <span className="pip-badge">{pricesOk ? "PRICES OK" : "PRICES FAIL"}</span>
             {countdown ? <span className="pip-badge">THAW: {countdown}</span> : null}
@@ -231,19 +289,51 @@ export default function Page() {
         </div>
 
         <div className="pip-tabs">
-          <button className={`pip-tab ${tab === "STATUS" ? "active" : ""}`} onClick={() => setTab("STATUS")}>STATUS</button>
-          <button className={`pip-tab ${tab === "CHARTS" ? "active" : ""}`} onClick={() => setTab("CHARTS")}>DATA</button>
-          <button className={`pip-tab ${tab === "TRADES" ? "active" : ""}`} onClick={() => setTab("TRADES")}>LOG</button>
+          <button className={`pip-tab ${tab === "STATUS" ? "active" : ""}`} onClick={() => setTab("STATUS")}>
+            STATUS
+          </button>
+          <button className={`pip-tab ${tab === "CHARTS" ? "active" : ""}`} onClick={() => setTab("CHARTS")}>
+            DATA
+          </button>
+          <button className={`pip-tab ${tab === "TRADES" ? "active" : ""}`} onClick={() => setTab("TRADES")}>
+            LOG
+          </button>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="pip-btn" onClick={() => fetchData(new AbortController().signal)}>REFRESH</button>
-            <button className="pip-btn" onClick={async () => { try { await postJson("/control/pause", { seconds: 600, reason: "Paused from Pip" }); } catch {} }}>
+          <div className="pip-actions">
+            <button className="pip-btn" onClick={() => fetchData(new AbortController().signal)}>
+              REFRESH
+            </button>
+            <button
+              className="pip-btn"
+              onClick={async () => {
+                try {
+                  await postJson("/control/pause", { seconds: 600, reason: "Paused from Pip" });
+                  await fetchData(new AbortController().signal);
+                } catch {}
+              }}
+            >
               PAUSE
             </button>
-            <button className="pip-btn" onClick={async () => { try { await postJson("/control/cryo", { seconds: 600, reason: "Manual Cryo" }); } catch {} }}>
+            <button
+              className="pip-btn"
+              onClick={async () => {
+                try {
+                  await postJson("/control/cryo", { seconds: 600, reason: "Manual Cryo" });
+                  await fetchData(new AbortController().signal);
+                } catch {}
+              }}
+            >
               CRYO
             </button>
-            <button className="pip-btn" onClick={async () => { try { await postJson("/control/revive", { reason: "Revive" }); } catch {} }}>
+            <button
+              className="pip-btn"
+              onClick={async () => {
+                try {
+                  await postJson("/control/revive", { reason: "Revive" });
+                  await fetchData(new AbortController().signal);
+                } catch {}
+              }}
+            >
               REVIVE
             </button>
           </div>
@@ -263,22 +353,59 @@ export default function Page() {
             <div className="pip-grid">
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
-                <div className="pip-row"><div className="pip-k">Equity</div><div className="pip-v">{fmtMoney(heartbeat?.equity_usd)}</div></div>
-                <div className="pip-row"><div className="pip-k">Markets</div><div className="pip-v wrap">{Array.isArray(heartbeat?.markets) ? heartbeat.markets.join(", ") : "—"}</div></div>
-                <div className="pip-row"><div className="pip-k">Open positions</div><div className="pip-v">{heartbeat?.open_positions ?? "—"}</div></div>
-                <div className="pip-row"><div className="pip-k">Survival</div><div className="pip-v">{heartbeat?.survival_mode || "—"}</div></div>
-                <div className="pip-row"><div className="pip-k">Last heartbeat</div><div className="pip-v wrap">{heartbeat?.time_utc || "—"}</div></div>
+                <div className="pip-row">
+                  <div className="pip-k">Equity</div>
+                  <div className="pip-v">{fmtMoney(heartbeat?.equity_usd)}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Markets</div>
+                  <div className="pip-v wrap">{fmtMarkets(heartbeat?.markets)}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Open positions</div>
+                  <div className="pip-v">{heartbeat?.open_positions ?? "—"}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Survival</div>
+                  <div className="pip-v">{heartbeat?.survival_mode || "—"}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Last heartbeat</div>
+                  <div className="pip-v wrap">{heartbeat?.time_utc || "—"}</div>
+                </div>
               </div>
 
               <div className="pip-panel">
                 <div className="pip-heading">VAULT COMPANION</div>
-                <div className="pip-row"><div className="pip-k">Name</div><div className="pip-v">{petChar}</div></div>
-                <div className="pip-row"><div className="pip-k">Stage</div><div className="pip-v">{pet?.stage || "—"}</div></div>
-                <div className="pip-row"><div className="pip-k">Mood</div><div className="pip-v">{pet?.mood || "—"}</div></div>
-                <div className="pip-row"><div className="pip-k">Health</div><div className="pip-v">{fmtNum(pet?.health, 1)}</div></div>
-                <div className="pip-row"><div className="pip-k">Hunger</div><div className="pip-v">{fmtNum(pet?.hunger, 1)}</div></div>
-                <div className="pip-row"><div className="pip-k">Growth</div><div className="pip-v">{fmtNum(pet?.growth, 1)}</div></div>
-                <div className="pip-row"><div className="pip-k">Updated</div><div className="pip-v wrap">{pet?.time_utc || "—"}</div></div>
+                <div className="pip-row">
+                  <div className="pip-k">Name</div>
+                  <div className="pip-v">{petChar}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Stage</div>
+                  <div className="pip-v">{pet?.stage || "—"}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Mood</div>
+                  <div className="pip-v">{pet?.mood || "—"}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Health</div>
+                  <div className="pip-v">{fmtNum(pet?.health, 1)}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Hunger</div>
+                  <div className="pip-v">{fmtNum(pet?.hunger, 1)}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Growth</div>
+                  <div className="pip-v">{fmtNum(pet?.growth, 1)}</div>
+                </div>
+                <div className="pip-row">
+                  <div className="pip-k">Updated</div>
+                  <div className="pip-v wrap">{pet?.time_utc || "—"}</div>
+                </div>
+
                 {stateMode === "CRYO" && (
                   <div className="pip-muted" style={{ marginTop: 10 }}>
                     CRYO TUBE ACTIVE: {control?.cryo_reason || "safety"} · THAW IN {countdown || "—"}
@@ -299,13 +426,19 @@ export default function Page() {
 
               <div className="pip-panel">
                 <div className="pip-heading">
-                  PRICE CANDLES ({marketForCandles}) · {intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : `${intervalSec / 60}M`}
+                  PRICE CANDLES ({marketForCandles}) · {tfLabel}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                  <button className={`pip-tab ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)}>1M</button>
-                  <button className={`pip-tab ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)}>5M</button>
-                  <button className={`pip-tab ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)}>15M</button>
+                <div className="pip-tf">
+                  <button className={`pip-tab ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)}>
+                    1M
+                  </button>
+                  <button className={`pip-tab ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)}>
+                    5M
+                  </button>
+                  <button className={`pip-tab ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)}>
+                    15M
+                  </button>
                 </div>
 
                 <div className="pip-chartwrap">
