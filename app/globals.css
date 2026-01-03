@@ -60,6 +60,35 @@ body {
   justify-content: flex-end;
 }
 
+/* NEW: top nav links (HOME / CANDLES / CRYPTO) */
+.pip-links{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(119,255,154,0.14);
+}
+
+.pip-link{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(119,255,154,0.22);
+  background: rgba(0,0,0,0.30);
+  color: rgba(119,255,154,0.95);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.pip-link.active{
+  background: rgba(119,255,154,0.10);
+  border-color: rgba(119,255,154,0.45);
+}
+
 /* tabs + buttons row */
 .pip-tabs{
   display: flex;
@@ -150,6 +179,7 @@ body {
 .pip-v{
   text-align: right;
   font-weight: 700;
+  min-width: 0; /* NEW: helps flex items shrink on phones */
 }
 
 .pip-muted{
@@ -158,12 +188,14 @@ body {
   line-height: 1.2;
 }
 
+/* charts */
 .pip-chartwrap{
   border: 1px solid rgba(119,255,154,0.12);
   background: rgba(0,0,0,0.22);
   border-radius: 14px;
   padding: 10px;
-  overflow: hidden;
+  overflow-x: auto;  /* NEW: safer on tiny screens */
+  overflow-y: hidden;
 }
 
 .pip-tf{
@@ -171,6 +203,16 @@ body {
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 10px;
+}
+
+/* select inputs (for markets dropdown on candles page) */
+.pip-select{
+  border: 1px solid rgba(119,255,154,0.22);
+  background: rgba(0,0,0,0.35);
+  color: rgba(119,255,154,0.95);
+  padding: 9px 10px;
+  border-radius: 10px;
+  outline: none;
 }
 
 /* table */
@@ -193,7 +235,7 @@ body {
   text-align: left;
 }
 
-/* RESPONSIVE FIXES (this is what stops phone portrait overlap) */
+/* RESPONSIVE FIXES (stops phone portrait overlap) */
 @media (min-width: 900px){
   .pip-panel:nth-child(1){ grid-column: span 6; }
   .pip-panel:nth-child(2){ grid-column: span 6; }
