@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Crypto AI Dashboard",
-  description: "Dashboard for Crypto AI API + Bot stats"
+  title: "PIP-TRADE 3000",
+  description: "Crypto AI dashboard",
 };
 
 export default function RootLayout({ children }) {
