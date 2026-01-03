@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const REFRESH_MS = 5000;
 
@@ -27,12 +27,33 @@ function normalizeCandles(raw) {
 }
 
 function CandleChart({ candles, height = 360 }) {
-  const w = 820;
+  const containerRef = useRef(null);
+  const [w, setW] = useState(520);
+
+  // Responsive width: match container width (phone-friendly)
+  useEffect(() => {
+    function measure() {
+      const el = containerRef.current;
+      if (!el) return;
+      const cw = Math.floor(el.getBoundingClientRect().width || 520);
+      setW(Math.max(320, Math.min(980, cw))); // clamp
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
   const h = height;
-  const data = (candles || []).slice(-90);
+
+  // SHOW MORE CANDLES (denser)
+  const data = (candles || []).slice(-200);
 
   if (data.length < 2) {
-    return <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>NO CANDLES YET</div>;
+    return (
+      <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>
+        NO CANDLES YET
+      </div>
+    );
   }
 
   const highs = data.map((c) => c.h);
@@ -40,8 +61,8 @@ function CandleChart({ candles, height = 360 }) {
   const maxY = Math.max(...highs);
   const minY = Math.min(...lows);
 
-  // more padding = less zoom
-  const pad = (maxY - minY) * 0.22 || 1;
+  // Vertical padding so it doesn’t look overly zoomed
+  const pad = (maxY - minY) * 0.18 || 1;
   const yMax = maxY + pad;
   const yMin = minY - pad;
 
@@ -50,36 +71,57 @@ function CandleChart({ candles, height = 360 }) {
     return h - 12 - t * (h - 24);
   };
 
-  const bw = Math.max(4, Math.floor((w - 24) / data.length) - 1);
+  // THINNER candles: hard cap candle body width
+  // More candles visible on phone.
+  const innerW = w - 24;
+  const step = innerW / data.length;
+
+  // 1) Keep them thin (max 4px)
+  // 2) Keep minimum 1px so you always see them
+  const bw = Math.max(1, Math.min(4, step * 0.55));
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-      <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1)" />
-      <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2)" />
+    <div ref={containerRef} style={{ width: "100%" }}>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {/* grid */}
+        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1)" />
+        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2)" />
 
-      {data.map((c, i) => {
-        const x = 12 + i * (bw + 1);
-        const yO = toY(c.o);
-        const yC = toY(c.c);
-        const yH = toY(c.h);
-        const yL = toY(c.l);
-        const up = c.c >= c.o;
+        {data.map((c, i) => {
+          const xCenter = 12 + i * step + step / 2;
 
-        const bodyTop = Math.min(yO, yC);
-        const bodyBot = Math.max(yO, yC);
-        const bodyH = Math.max(2, bodyBot - bodyTop);
+          const yO = toY(c.o);
+          const yC = toY(c.c);
+          const yH = toY(c.h);
+          const yL = toY(c.l);
 
-        const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
-        const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
+          const up = c.c >= c.o;
+          const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
+          const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
 
-        return (
-          <g key={`${c.t}-${i}`}>
-            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke={stroke} strokeWidth="1.1" />
-            <rect x={x} y={bodyTop} width={bw} height={bodyH} fill={fill} stroke={stroke} strokeWidth="1" />
-          </g>
-        );
-      })}
-    </svg>
+          const bodyTop = Math.min(yO, yC);
+          const bodyBot = Math.max(yO, yC);
+          const bodyH = Math.max(2, bodyBot - bodyTop);
+
+          return (
+            <g key={`${c.t}-${i}`}>
+              {/* wick */}
+              <line x1={xCenter} y1={yH} x2={xCenter} y2={yL} stroke={stroke} strokeWidth="1.1" />
+              {/* body */}
+              <rect
+                x={xCenter - bw / 2}
+                y={bodyTop}
+                width={bw}
+                height={bodyH}
+                fill={fill}
+                stroke={stroke}
+                strokeWidth="1"
+              />
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -110,7 +152,15 @@ export default function CandlesPage() {
   const [ohlc, setOhlc] = useState([]);
 
   const tfLabel =
-    intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : intervalSec === 900 ? "15M" : intervalSec === 3600 ? "1H" : `${Math.floor(intervalSec / 60)}M`;
+    intervalSec === 60
+      ? "1M"
+      : intervalSec === 300
+      ? "5M"
+      : intervalSec === 900
+      ? "15M"
+      : intervalSec === 3600
+      ? "1H"
+      : `${Math.floor(intervalSec / 60)}M`;
 
   async function fetchJson(url, signal) {
     const res = await fetch(url, { cache: "no-store", signal });
@@ -134,9 +184,10 @@ export default function CandlesPage() {
       }
 
       const o = await fetchJson(
-        `${apiBase}/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=400`,
+        `${apiBase}/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=600`,
         signal
       );
+
       setOhlc(normalizeCandles(o?.candles || o || []));
       setLastFetchAt(new Date());
     } catch (e) {
@@ -171,7 +222,8 @@ export default function CandlesPage() {
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
             <div className="pip-sub wrap">
-              Candles page · API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last: {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
+              Candles page · API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last:{" "}
+              {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
         </div>
@@ -220,7 +272,7 @@ export default function CandlesPage() {
             </div>
 
             <div className="pip-muted" style={{ marginTop: 10 }}>
-              Green = up • Red = down • Added extra padding so chart isn’t overly zoomed.
+              Thinner candles + shows more history (200 candles). Green = up, Red = down.
             </div>
           </div>
         </div>
