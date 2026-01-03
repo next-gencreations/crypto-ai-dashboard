@@ -53,7 +53,7 @@ function MiniLineChart({ points, height = 140 }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.8, fontSize: 12, marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.8, fontSize: 12, marginBottom: 6, gap: 10, flexWrap: "wrap" }}>
         <span>Equity (last {series.length} pts)</span>
         <span>Latest: {fmtMoney(latest)}</span>
       </div>
@@ -62,7 +62,7 @@ function MiniLineChart({ points, height = 140 }) {
         <line x1="10" y1={h / 2} x2={w - 10} y2={h / 2} stroke="rgba(255,255,255,0.06)" />
         <path d={d} fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" />
       </svg>
-      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, fontSize: 12, marginTop: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, fontSize: 12, marginTop: 6, gap: 10, flexWrap: "wrap" }}>
         <span>Min: {fmtMoney(minY)}</span>
         <span>Max: {fmtMoney(maxY)}</span>
       </div>
@@ -224,6 +224,26 @@ export default function Page() {
     return res.json();
   }
 
+  // TradingView widget
+  const tvSymbol = "BINANCE:BTCUSDT";
+  const tvInterval = tf === "1m" ? "1" : tf === "5m" ? "5" : tf === "15m" ? "15" : tf === "30m" ? "30" : tf === "1h" ? "60" : "240";
+  const tvSrc =
+    "https://s.tradingview.com/widgetembed/?" +
+    new URLSearchParams({
+      symbol: tvSymbol,
+      interval: tvInterval,
+      hidetoptoolbar: "0",
+      hidelegend: "1",
+      saveimage: "0",
+      toolbarbg: "rgba(0,0,0,0)",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      enable_publishing: "0",
+      allow_symbol_change: "0",
+    }).toString();
+
+  // ---------- Styles ----------
   const pageStyle = {
     minHeight: "100vh",
     padding: 18,
@@ -239,6 +259,7 @@ export default function Page() {
     borderRadius: 18,
     padding: 14,
     boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    overflow: "hidden", // ✅ prevents “bleed”
   };
 
   const pill = (bg) => ({
@@ -251,6 +272,7 @@ export default function Page() {
     border: "1px solid rgba(255,255,255,0.10)",
     fontSize: 12,
     opacity: 0.95,
+    maxWidth: "100%",
   });
 
   const btn = {
@@ -262,14 +284,22 @@ export default function Page() {
     cursor: "pointer",
   };
 
+  const small = { fontSize: 12, opacity: 0.75 };
+
+  // ✅ Responsive layout: 1 column on mobile, 12-col grid on bigger screens
   const grid = {
     display: "grid",
     gap: 14,
-    gridTemplateColumns: "repeat(12, 1fr)",
+    gridTemplateColumns: "1fr", // mobile default
     alignItems: "stretch",
   };
 
-  const small = { fontSize: 12, opacity: 0.75 };
+  // ✅ This makes 2 cards become 1 column on mobile, 2 columns on wide screens
+  const twoColWrap = {
+    display: "grid",
+    gap: 14,
+    gridTemplateColumns: "1fr", // mobile
+  };
 
   const petEmoji = useMemo(() => {
     const stage = String(pet?.stage || "egg").toLowerCase();
@@ -280,34 +310,15 @@ export default function Page() {
     return "🐣";
   }, [pet?.stage]);
 
-  // TradingView widget URL (external)
-  const tvSymbol = "BINANCE:BTCUSDT";
-  const tvInterval = tf === "1m" ? "1" : tf === "5m" ? "5" : tf === "15m" ? "15" : tf === "30m" ? "30" : tf === "1h" ? "60" : "240";
-  const tvSrc =
-    "https://s.tradingview.com/widgetembed/?" +
-    new URLSearchParams({
-      symbol: tvSymbol,
-      interval: tvInterval,
-      hidetoptoolbar: "1",
-      hidelegend: "1",
-      saveimage: "0",
-      toolbarbg: "rgba(0,0,0,0)",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      enable_publishing: "0",
-      allow_symbol_change: "0",
-    }).toString();
-
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-          <div>
+          <div style={{ minWidth: 220 }}>
             <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>🚀 Crypto AI Dashboard</div>
             <div style={small}>
-              API: <span style={{ opacity: 0.95 }}>{apiBase || "—"}</span> · Refresh: {REFRESH_MS / 1000}s · Last update:{" "}
+              API: <span style={{ opacity: 0.95, wordBreak: "break-word" }}>{apiBase || "—"}</span> · Refresh: {REFRESH_MS / 1000}s · Last update:{" "}
               {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
@@ -355,7 +366,7 @@ export default function Page() {
 
         <div style={grid}>
           {/* Heartbeat */}
-          <div style={{ ...card, gridColumn: "span 12" }}>
+          <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Heartbeat</div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -366,115 +377,90 @@ export default function Page() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginTop: 12 }}>
-              <div>
-                <div style={small}>Equity</div>
-                <div style={{ fontSize: 20, fontWeight: 900 }}>{fmtMoney(heartbeat?.equity_usd)}</div>
+              <div><div style={small}>Equity</div><div style={{ fontSize: 20, fontWeight: 900 }}>{fmtMoney(heartbeat?.equity_usd)}</div></div>
+              <div><div style={small}>Markets</div><div style={{ fontWeight: 700, wordBreak: "break-word" }}>{Array.isArray(heartbeat?.markets) ? heartbeat.markets.join(", ") : (heartbeat?.markets || "—")}</div></div>
+              <div><div style={small}>Open positions</div><div style={{ fontWeight: 800, fontSize: 18 }}>{heartbeat?.open_positions ?? "—"}</div></div>
+              <div><div style={small}>Bot status</div><div style={{ fontWeight: 800 }}>{heartbeat?.status || "—"}</div></div>
+              <div><div style={small}>Last heartbeat</div><div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, wordBreak: "break-word" }}>{heartbeat?.time_utc || "—"}</div></div>
+            </div>
+          </div>
+
+          {/* Pet + Candles (responsive wrapper) */}
+          <div
+            style={twoColWrap}
+          >
+            {/* Pet */}
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Pet</div>
+                <div style={{ fontSize: 42 }}>{petEmoji}</div>
               </div>
-              <div>
-                <div style={small}>Markets</div>
-                <div style={{ fontWeight: 700, wordBreak: "break-word" }}>
-                  {(() => {
-                    try {
-                      const m = heartbeat?.markets;
-                      if (Array.isArray(m)) return m.join(", ") || "—";
-                      if (typeof m === "string") {
-                        const parsed = JSON.parse(m);
-                        return Array.isArray(parsed) ? parsed.join(", ") : m;
-                      }
-                      return "—";
-                    } catch {
-                      return heartbeat?.markets || "—";
-                    }
-                  })()}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 10 }}>
+                <div><div style={small}>Stage</div><div style={{ fontWeight: 800 }}>{pet?.stage || "—"}</div></div>
+                <div><div style={small}>Mood</div><div style={{ fontWeight: 800 }}>{pet?.mood || "—"}</div></div>
+                <div><div style={small}>Health</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.health, 1)}</div></div>
+                <div><div style={small}>Hunger</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.hunger, 1)}</div></div>
+                <div><div style={small}>Growth</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.growth, 1)}</div></div>
+                <div><div style={small}>Fainted until</div><div style={{ fontWeight: 700, fontSize: 12, opacity: 0.85, wordBreak: "break-word" }}>{pet?.fainted_until_utc || "—"}</div></div>
+              </div>
+
+              <div style={{ marginTop: 10, ...small }}>
+                Pet time: <span style={{ opacity: 0.95, wordBreak: "break-word" }}>{pet?.time_utc || "—"}</span>
+              </div>
+            </div>
+
+            {/* Candlestick */}
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Candlestick Chart</div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={small}>Symbol: {market}</span>
+                  <select
+                    value={tf}
+                    onChange={(e) => setTf(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(255,255,255,0.06)",
+                      color: "rgba(255,255,255,0.92)",
+                      maxWidth: "100%",
+                    }}
+                  >
+                    <option value="1m">1m</option>
+                    <option value="5m">5m</option>
+                    <option value="15m">15m</option>
+                    <option value="30m">30m</option>
+                    <option value="1h">1h</option>
+                    <option value="4h">4h</option>
+                  </select>
                 </div>
               </div>
-              <div>
-                <div style={small}>Open positions</div>
-                <div style={{ fontWeight: 800, fontSize: 18 }}>{heartbeat?.open_positions ?? "—"}</div>
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>TradingView (external)</div>
+                <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)" }}>
+                  <iframe title="TradingView" src={tvSrc} style={{ width: "100%", height: 340, border: 0 }} loading="lazy" />
+                </div>
               </div>
-              <div>
-                <div style={small}>Bot status</div>
-                <div style={{ fontWeight: 800 }}>{heartbeat?.status || "—"}</div>
-              </div>
-              <div>
-                <div style={small}>Last heartbeat</div>
-                <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, wordBreak: "break-word" }}>{heartbeat?.time_utc || "—"}</div>
-              </div>
-            </div>
-          </div>
 
-          {/* Pet */}
-          <div style={{ ...card, gridColumn: "span 5" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>Pet</div>
-              <div style={{ fontSize: 42 }}>{petEmoji}</div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 10 }}>
-              <div><div style={small}>Stage</div><div style={{ fontWeight: 800 }}>{pet?.stage || "—"}</div></div>
-              <div><div style={small}>Mood</div><div style={{ fontWeight: 800 }}>{pet?.mood || "—"}</div></div>
-              <div><div style={small}>Health</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.health, 1)}</div></div>
-              <div><div style={small}>Hunger</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.hunger, 1)}</div></div>
-              <div><div style={small}>Growth</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.growth, 1)}</div></div>
-              <div><div style={small}>Fainted until</div><div style={{ fontWeight: 700, fontSize: 12, opacity: 0.85 }}>{pet?.fainted_until_utc || "—"}</div></div>
-            </div>
-
-            <div style={{ marginTop: 10, ...small }}>
-              Pet time: <span style={{ opacity: 0.95 }}>{pet?.time_utc || "—"}</span>
-            </div>
-          </div>
-
-          {/* Candles */}
-          <div style={{ ...card, gridColumn: "span 7" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>Candlestick Chart</div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={small}>Symbol: {market}</span>
-                <select
-                  value={tf}
-                  onChange={(e) => setTf(e.target.value)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "rgba(255,255,255,0.92)",
-                  }}
-                >
-                  <option value="1m">1m</option>
-                  <option value="5m">5m</option>
-                  <option value="15m">15m</option>
-                  <option value="30m">30m</option>
-                  <option value="1h">1h</option>
-                  <option value="4h">4h</option>
-                </select>
-              </div>
-            </div>
-
-            {/* TradingView (restored) */}
-            <div style={{ marginTop: 12 }}>
-              <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>TradingView (external)</div>
-              <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)" }}>
-                <iframe title="TradingView" src={tvSrc} style={{ width: "100%", height: 320, border: 0 }} loading="lazy" />
-              </div>
-            </div>
-
-            {/* Bot candles */}
-            <div style={{ marginTop: 14 }}>
-              <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>Bot candles (from your /prices ticks)</div>
-              <CandleChart candles={candles} height={260} />
-              <div style={{ marginTop: 8, ...small, opacity: 0.75 }}>
-                If this says “Not enough candle data yet”, your bot isn’t currently posting /ingest/prices.
+              <div style={{ marginTop: 14 }}>
+                <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>Bot candles (from your /prices ticks)</div>
+                <CandleChart candles={candles} height={240} />
+                <div style={{ marginTop: 8, ...small, opacity: 0.75 }}>
+                  Candles are built from your bot’s own /prices ticks.
+                </div>
               </div>
             </div>
           </div>
 
           {/* Trading Stats */}
-          <div style={{ ...card, gridColumn: "span 12" }}>
+          <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Trading Stats</div>
               <div style={small}>
-                Control updated: <span style={{ opacity: 0.95 }}>{control?.updated_time_utc || "—"}</span>
+                Control updated: <span style={{ opacity: 0.95, wordBreak: "break-word" }}>{control?.updated_time_utc || "—"}</span>
               </div>
             </div>
 
@@ -491,7 +477,7 @@ export default function Page() {
           </div>
 
           {/* Trades */}
-          <div style={{ ...card, gridColumn: "span 12" }}>
+          <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Recent Trades</div>
               <div style={small}>{trades?.length ? `${trades.length} loaded` : "No trades yet"}</div>
@@ -535,6 +521,28 @@ export default function Page() {
         </div>
 
         {loading && !payload && <div style={{ ...small, marginTop: 12, opacity: 0.9 }}>Loading dashboard data…</div>}
+
+        {/* ✅ Responsive media query (inline) */}
+        <style jsx global>{`
+          @media (min-width: 900px) {
+            /* restore desktop 12-col feel by making the wrapper 2 columns */
+            .__twoColWide {
+              grid-template-columns: 5fr 7fr !important;
+            }
+          }
+        `}</style>
+
+        {/* Apply the class by JS (simple + reliable) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(){
+                const els=document.querySelectorAll('[data-two-col]');
+                els.forEach(el=>el.classList.add('__twoColWide'));
+              })();
+            `,
+          }}
+        />
       </div>
     </div>
   );
