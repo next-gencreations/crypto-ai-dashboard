@@ -78,7 +78,11 @@ function MiniLineChart({ points, height = 150 }) {
 
   const series = (points || []).filter((p) => typeof p?.equity_usd === "number");
   if (series.length < 2) {
-    return <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>NOT ENOUGH DATA</div>;
+    return (
+      <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>
+        NOT ENOUGH DATA
+      </div>
+    );
   }
 
   const ys = series.map((p) => p.equity_usd);
@@ -113,7 +117,11 @@ function CandleChart({ candles, height = 240 }) {
   const data = (candles || []).slice(-70);
 
   if (data.length < 2) {
-    return <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>NO CANDLES YET</div>;
+    return (
+      <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>
+        NO CANDLES YET
+      </div>
+    );
   }
 
   const highs = data.map((c) => c.h);
@@ -151,7 +159,14 @@ function CandleChart({ candles, height = 240 }) {
 
         return (
           <g key={`${c.t}-${i}`}>
-            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke="rgba(119,255,154,0.55)" strokeWidth="1.1" />
+            <line
+              x1={x + bw / 2}
+              y1={yH}
+              x2={x + bw / 2}
+              y2={yL}
+              stroke="rgba(119,255,154,0.55)"
+              strokeWidth="1.1"
+            />
             <rect
               x={x}
               y={bodyTop}
@@ -208,7 +223,10 @@ export default function Page() {
       setPayload(json);
       setLastFetchAt(new Date());
 
-      const o = await fetchJson(`${apiBase}/ohlc?market=${marketForCandles}&interval=${intervalSec}&limit=200`, signal);
+      const o = await fetchJson(
+        `${apiBase}/ohlc?market=${marketForCandles}&interval=${intervalSec}&limit=200`,
+        signal
+      );
       const normalized = normalizeCandles(o?.candles || o || []);
       setOhlc(normalized);
     } catch (e) {
@@ -249,7 +267,11 @@ export default function Page() {
 
   const pricesOk = heartbeat?.prices_ok === 1 || heartbeat?.prices_ok === true;
   const countdown =
-    stateMode === "CRYO" ? timeLeft(control?.cryo_until_utc) : stateMode === "PAUSED" ? timeLeft(control?.pause_until_utc) : "";
+    stateMode === "CRYO"
+      ? timeLeft(control?.cryo_until_utc)
+      : stateMode === "PAUSED"
+      ? timeLeft(control?.pause_until_utc)
+      : "";
 
   const sex = String(pet?.sex || "boy").toLowerCase();
   const petChar = sex === "girl" ? "VAULT GIRL" : "VAULT BOY";
@@ -261,7 +283,13 @@ export default function Page() {
   }, [stateMode]);
 
   const tfLabel =
-    intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : intervalSec === 900 ? "15M" : `${Math.floor(intervalSec / 60)}M`;
+    intervalSec === 60
+      ? "1M"
+      : intervalSec === 300
+      ? "5M"
+      : intervalSec === 900
+      ? "15M"
+      : `${Math.floor(intervalSec / 60)}M`;
 
   return (
     <div className="pip-crt">
@@ -270,7 +298,8 @@ export default function Page() {
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
             <div className="pip-sub wrap">
-              API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last: {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
+              API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last:{" "}
+              {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
 
@@ -281,9 +310,9 @@ export default function Page() {
           </div>
         </div>
 
-        {/* TOP NAV LINKS (new) */}
+        {/* TOP NAV LINKS */}
         <div className="pip-links">
-          <Link className="pip-link" href="/">HOME</Link>
+          <Link className="pip-link active" href="/">HOME</Link>
           <Link className="pip-link" href="/candles">CANDLES</Link>
           <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
@@ -487,7 +516,11 @@ export default function Page() {
                 </table>
               </div>
 
-              {!loading && (!trades || trades.length === 0) && <div className="pip-muted" style={{ marginTop: 12 }}>NO TRADES YET</div>}
+              {!loading && (!trades || trades.length === 0) && (
+                <div className="pip-muted" style={{ marginTop: 12 }}>
+                  NO TRADES YET
+                </div>
+              )}
             </div>
           )}
         </div>
