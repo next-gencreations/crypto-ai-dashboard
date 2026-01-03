@@ -84,12 +84,10 @@ function MiniLineChart({ points, height = 150 }) {
   );
 }
 
-/* --------- candle chart (FIXED SCALE + RED/GREEN) --------- */
+/* --------- candle chart --------- */
 function CandleChart({ candles, height = 260 }) {
   const w = 520;
   const h = height;
-
-  // More candles visible
   const data = (candles || []).slice(-120);
 
   if (data.length < 2) {
@@ -101,7 +99,6 @@ function CandleChart({ candles, height = 260 }) {
   const maxY = Math.max(...highs);
   const minY = Math.min(...lows);
 
-  // Bigger padding stops “flat lines”
   const pad = (maxY - minY) * 0.25 || 1;
   const yMax = maxY + pad;
   const yMin = minY - pad;
@@ -111,7 +108,6 @@ function CandleChart({ candles, height = 260 }) {
     return h - 10 - t * (h - 20);
   };
 
-  // thinner candles
   const bw = Math.max(2, Math.min(6, Math.floor((w - 20) / data.length)));
 
   return (
@@ -127,7 +123,6 @@ function CandleChart({ candles, height = 260 }) {
         const yL = toY(c.l);
 
         const up = c.c >= c.o;
-
         const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
         const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
 
@@ -143,6 +138,43 @@ function CandleChart({ candles, height = 260 }) {
         );
       })}
     </svg>
+  );
+}
+
+/* ====== FULL BODY COMPANION (MOVING) ====== */
+function VaultCompanionFull({ sex, mood, survivalMode }) {
+  const isGirl = String(sex || "boy").toLowerCase() === "girl";
+  const src = isGirl ? "/vault-girl-full.png" : "/vault-boy-full.png";
+
+  // simple behaviour rules (we can make smarter later)
+  const moodKey = String(mood || "").toLowerCase();
+  const survKey = String(survivalMode || "").toLowerCase();
+
+  const isSad = moodKey.includes("sad") || moodKey.includes("cryo");
+  const isAngry = moodKey.includes("angry");
+  const isHappy = moodKey.includes("happy") || moodKey.includes("good");
+  const isStarving = survKey.includes("starv") || survKey.includes("danger");
+
+  // movement style
+  const anim =
+    isStarving ? "panic" :
+    isAngry ? "stomp" :
+    isSad ? "slow" :
+    isHappy ? "walk" :
+    "idle";
+
+  return (
+    <div className="pip-pet-stage" aria-label="Vault companion stage">
+      <div className={`pip-pet ${anim}`}>
+        <img src={src} alt={isGirl ? "Vault Girl" : "Vault Boy"} />
+      </div>
+
+      <div className="pip-pet-floor" />
+
+      <div className="pip-muted" style={{ marginTop: 8 }}>
+        Animation: {anim.toUpperCase()}
+      </div>
+    </div>
   );
 }
 
@@ -186,7 +218,6 @@ export default function Page() {
       setPayload(json);
       setLastFetchAt(new Date());
 
-      // pick first market from heartbeat if present
       const m = json?.heartbeat?.markets;
       const first =
         Array.isArray(m) && m.length ? String(m[0]) :
@@ -243,9 +274,6 @@ export default function Page() {
 
   const sex = String(pet?.sex || "boy").toLowerCase();
   const petChar = sex === "girl" ? "VAULT GIRL" : "VAULT BOY";
-
-  // ✅ character image path (you’ll add files in /public)
-  const avatarSrc = sex === "girl" ? "/vault-girl.png" : "/vault-boy.png";
 
   const statusBadge = useMemo(() => {
     if (stateMode === "CRYO") return "CRYO";
@@ -317,20 +345,15 @@ export default function Page() {
               <div className="pip-panel">
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                <div className="pip-companion">
-                  <div className="pip-avatar">
-                    <img src={avatarSrc} alt={petChar} />
-                  </div>
+                <div className="pip-row"><div className="pip-k">Name</div><div className="pip-v">{petChar}</div></div>
+                <div className="pip-row"><div className="pip-k">Stage</div><div className="pip-v">{pet?.stage || "—"}</div></div>
+                <div className="pip-row"><div className="pip-k">Mood</div><div className="pip-v">{pet?.mood || "—"}</div></div>
+                <div className="pip-row"><div className="pip-k">Health</div><div className="pip-v">{fmtNum(pet?.health, 1)}</div></div>
+                <div className="pip-row"><div className="pip-k">Hunger</div><div className="pip-v">{fmtNum(pet?.hunger, 1)}</div></div>
+                <div className="pip-row"><div className="pip-k">Growth</div><div className="pip-v">{fmtNum(pet?.growth, 1)}</div></div>
 
-                  <div style={{ flex: 1 }}>
-                    <div className="pip-row"><div className="pip-k">Name</div><div className="pip-v">{petChar}</div></div>
-                    <div className="pip-row"><div className="pip-k">Stage</div><div className="pip-v">{pet?.stage || "—"}</div></div>
-                    <div className="pip-row"><div className="pip-k">Mood</div><div className="pip-v">{pet?.mood || "—"}</div></div>
-                    <div className="pip-row"><div className="pip-k">Health</div><div className="pip-v">{fmtNum(pet?.health, 1)}</div></div>
-                    <div className="pip-row"><div className="pip-k">Hunger</div><div className="pip-v">{fmtNum(pet?.hunger, 1)}</div></div>
-                    <div className="pip-row"><div className="pip-k">Growth</div><div className="pip-v">{fmtNum(pet?.growth, 1)}</div></div>
-                    <div className="pip-row"><div className="pip-k">Updated</div><div className="pip-v wrap">{pet?.time_utc || "—"}</div></div>
-                  </div>
+                <div style={{ marginTop: 12 }}>
+                  <VaultCompanionFull sex={pet?.sex} mood={pet?.mood} survivalMode={heartbeat?.survival_mode} />
                 </div>
 
                 {stateMode === "CRYO" && (
@@ -372,7 +395,6 @@ export default function Page() {
           {tab === "LOG" && (
             <div className="pip-panel">
               <div className="pip-heading">TRADE LOG</div>
-
               <div style={{ overflowX: "auto" }}>
                 <table className="pip-table">
                   <thead>
