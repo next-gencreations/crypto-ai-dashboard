@@ -9,7 +9,6 @@ function fmtMoney(n) {
   const v = Number(n);
   return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
-
 function fmtNum(n, dp = 2) {
   if (n === null || n === undefined || Number.isNaN(Number(n))) return "—";
   return Number(n).toFixed(dp);
@@ -60,7 +59,6 @@ function safeMarketsList(m) {
   try {
     if (Array.isArray(m)) return m.map(String);
     if (typeof m === "string") {
-      // might be JSON string like ["BTCUSDT","ETHUSDT"]
       const parsed = JSON.parse(m);
       if (Array.isArray(parsed)) return parsed.map(String);
       return m ? [m] : [];
@@ -99,9 +97,7 @@ function MiniLineChart({ points, height = 150 }) {
     return h - 10 - t * (h - 20);
   };
 
-  const d = series
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i)} ${toY(p.equity_usd)}`)
-    .join(" ");
+  const d = series.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i)} ${toY(p.equity_usd)}`).join(" ");
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
@@ -145,7 +141,6 @@ function CandleChart({ candles, height = 240 }) {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
       <line x1="10" y1={h - 10} x2={w - 10} y2={h - 10} stroke="rgba(119,255,154,0.18)" />
-      <line x1="10" y1={h / 2} x2={w - 10} y2={h / 2} stroke="rgba(119,255,154,0.10)" />
 
       {data.map((c, i) => {
         const x = 10 + i * (bw + 1);
@@ -226,12 +221,10 @@ export default function Page() {
 
   const [tab, setTab] = useState("STATUS"); // STATUS | DATA | LOG | CHARTS
 
-  // Bot candles settings (your /ohlc)
   const [botIntervalSec, setBotIntervalSec] = useState(60);
   const [botMarket, setBotMarket] = useState("BTCUSDT");
   const [ohlc, setOhlc] = useState([]);
 
-  // External crypto candles settings (TradingView)
   const [tvSymbol, setTvSymbol] = useState("BINANCE:BTCUSDT");
   const [tvInterval, setTvInterval] = useState("5");
 
@@ -254,23 +247,24 @@ export default function Page() {
       setLoading(false);
       return;
     }
-
     try {
       setErr("");
-
       const json = await fetchJson(dataUrl, signal);
       setPayload(json);
       setLastFetchAt(new Date());
 
+      // auto-pick first market (handles array OR JSON string)
       const markets = safeMarketsList(json?.heartbeat?.markets);
-      const chosen = markets.length ? markets[0] : botMarket;
-      if (chosen && chosen !== botMarket) setBotMarket(chosen);
+      const first = markets.length ? markets[0] : botMarket;
+
+      if (first && first !== botMarket) setBotMarket(first);
 
       const o = await fetchJson(
-        `${apiBase}/ohlc?market=${encodeURIComponent(chosen)}&interval=${botIntervalSec}&limit=250`,
+        `${apiBase}/ohlc?market=${encodeURIComponent(first || botMarket)}&interval=${botIntervalSec}&limit=250`,
         signal
       );
 
+      // ✅ IMPORTANT FIX: normalize for CandleChart
       const normalized = normalizeCandles(o?.candles || o || []);
       setOhlc(normalized);
     } catch (e) {
@@ -310,13 +304,8 @@ export default function Page() {
   }
 
   const pricesOk = heartbeat?.prices_ok === 1 || heartbeat?.prices_ok === true;
-
   const countdown =
-    stateMode === "CRYO"
-      ? timeLeft(control?.cryo_until_utc)
-      : stateMode === "PAUSED"
-      ? timeLeft(control?.pause_until_utc)
-      : "";
+    stateMode === "CRYO" ? timeLeft(control?.cryo_until_utc) : stateMode === "PAUSED" ? timeLeft(control?.pause_until_utc) : "";
 
   const sex = String(pet?.sex || "boy").toLowerCase();
   const petChar = sex === "girl" ? "VAULT GIRL" : "VAULT BOY";
@@ -334,8 +323,7 @@ export default function Page() {
           <div>
             <div className="pip-title">PIP-TRADE 3000</div>
             <div className="pip-sub wrap">
-              API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last:{" "}
-              {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
+              API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last: {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
 
@@ -384,7 +372,6 @@ export default function Page() {
         )}
 
         <div className="pip-content">
-          {/* STATUS */}
           {tab === "STATUS" && (
             <div className="pip-grid">
               <div className="pip-panel">
@@ -415,7 +402,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* DATA */}
           {tab === "DATA" && (
             <div className="pip-grid">
               <div className="pip-panel">
@@ -441,7 +427,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* LOG */}
           {tab === "LOG" && (
             <div className="pip-panel">
               <div className="pip-heading">TRADE LOG</div>
@@ -476,7 +461,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* CHARTS */}
           {tab === "CHARTS" && (
             <div className="pip-panel">
               <div className="pip-heading">CANDLE CHARTS</div>
@@ -489,6 +473,10 @@ export default function Page() {
                   <button className={`pip-tab ${botIntervalSec === 60 ? "active" : ""}`} onClick={() => setBotIntervalSec(60)}>1M</button>
                   <button className={`pip-tab ${botIntervalSec === 300 ? "active" : ""}`} onClick={() => setBotIntervalSec(300)}>5M</button>
                   <button className={`pip-tab ${botIntervalSec === 900 ? "active" : ""}`} onClick={() => setBotIntervalSec(900)}>15M</button>
+
+                  <span style={{ marginLeft: "auto" }} className="pip-muted">
+                    Source: /ohlc?market=...&interval=...
+                  </span>
                 </div>
 
                 <div className="pip-chartwrap"><CandleChart candles={ohlc} height={280} /></div>
