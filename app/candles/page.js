@@ -21,7 +21,6 @@ function normalizeCandles(raw) {
       const cn = Number(cl);
 
       if (!t || [on, hn, ln, cn].some((x) => Number.isNaN(x))) return null;
-
       return { t, o: on, h: hn, l: ln, c: cn };
     })
     .filter(Boolean);
@@ -40,8 +39,9 @@ function CandleChart({ candles, height = 360 }) {
   const lows = data.map((c) => c.l);
   const maxY = Math.max(...highs);
   const minY = Math.min(...lows);
-  const pad = (maxY - minY) * 0.06 || 1;
 
+  // more padding = less zoom
+  const pad = (maxY - minY) * 0.22 || 1;
   const yMax = maxY + pad;
   const yMin = minY - pad;
 
@@ -54,8 +54,8 @@ function CandleChart({ candles, height = 360 }) {
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-      <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="rgba(119,255,154,0.18)" />
-      <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="rgba(119,255,154,0.10)" />
+      <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1)" />
+      <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2)" />
 
       {data.map((c, i) => {
         const x = 12 + i * (bw + 1);
@@ -69,18 +69,13 @@ function CandleChart({ candles, height = 360 }) {
         const bodyBot = Math.max(yO, yC);
         const bodyH = Math.max(2, bodyBot - bodyTop);
 
+        const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
+        const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
+
         return (
           <g key={`${c.t}-${i}`}>
-            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke="rgba(119,255,154,0.55)" strokeWidth="1.1" />
-            <rect
-              x={x}
-              y={bodyTop}
-              width={bw}
-              height={bodyH}
-              fill={up ? "rgba(119,255,154,0.25)" : "rgba(119,255,154,0.08)"}
-              stroke="rgba(119,255,154,0.85)"
-              strokeWidth="1"
-            />
+            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke={stroke} strokeWidth="1.1" />
+            <rect x={x} y={bodyTop} width={bw} height={bodyH} fill={fill} stroke={stroke} strokeWidth="1" />
           </g>
         );
       })}
@@ -131,19 +126,18 @@ export default function CandlesPage() {
     try {
       setErr("");
 
-      // pull /data to discover markets
       const data = await fetchJson(`${apiBase}/data`, signal);
       const hbMarkets = safeMarketsList(data?.heartbeat?.markets);
       if (hbMarkets.length) {
         setMarkets(hbMarkets);
-        // if current market not in list, switch to first
         if (!hbMarkets.includes(market)) setMarket(hbMarkets[0]);
       }
 
-      // pull ohlc
-      const o = await fetchJson(`${apiBase}/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=400`, signal);
+      const o = await fetchJson(
+        `${apiBase}/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=400`,
+        signal
+      );
       setOhlc(normalizeCandles(o?.candles || o || []));
-
       setLastFetchAt(new Date());
     } catch (e) {
       if (e?.name === "AbortError") return;
@@ -204,7 +198,7 @@ export default function CandlesPage() {
             <div className="pip-row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div className="pip-row" style={{ gap: 10, flexWrap: "wrap" }}>
                 <div className="pip-k">Market</div>
-                <select className="pip-select" value={market} onChange={(e) => setMarket(e.target.value)}>
+                <select className="pip-tab" value={market} onChange={(e) => setMarket(e.target.value)}>
                   {markets.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -226,7 +220,7 @@ export default function CandlesPage() {
             </div>
 
             <div className="pip-muted" style={{ marginTop: 10 }}>
-              Built from your bot’s own /prices ticks → /ohlc
+              Green = up • Red = down • Added extra padding so chart isn’t overly zoomed.
             </div>
           </div>
         </div>
