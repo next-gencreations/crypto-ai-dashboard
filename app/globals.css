@@ -1,9 +1,26 @@
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+
+  --pip-text: rgba(119, 255, 154, 0.92);
+  --pip-border: rgba(119, 255, 154, 0.18);
+  --pip-border-2: rgba(119, 255, 154, 0.14);
+
+  --pip-up: rgba(60, 255, 120, 0.95);
+  --pip-up-fill: rgba(60, 255, 120, 0.22);
+
+  --pip-down: rgba(255, 80, 80, 0.95);
+  --pip-down-fill: rgba(255, 80, 80, 0.18);
+
+  --pip-grid-1: rgba(119, 255, 154, 0.18);
+  --pip-grid-2: rgba(119, 255, 154, 0.10);
+}
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
   background: #050805;
-  color: rgba(119,255,154,0.92);
+  color: var(--pip-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
@@ -22,7 +39,7 @@ body {
 .pip-shell{
   max-width: 1100px;
   margin: 0 auto;
-  border: 1px solid rgba(119,255,154,0.18);
+  border: 1px solid var(--pip-border);
   border-radius: 18px;
   background: rgba(0,0,0,0.35);
   box-shadow: 0 16px 60px rgba(0,0,0,0.55);
@@ -36,7 +53,7 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(119,255,154,0.14);
+  border-bottom: 1px solid var(--pip-border-2);
 }
 
 .pip-title{
@@ -53,13 +70,56 @@ body {
   line-height: 1.2;
 }
 
+.pip-topbar-right{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* NAV LINKS */
+.pip-links{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--pip-border-2);
+}
+
+.pip-link{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(119,255,154,0.16);
+  background: rgba(0,0,0,0.28);
+  color: var(--pip-text);
+  padding: 9px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.pip-link.active{
+  background: rgba(119,255,154,0.12);
+  border-color: rgba(119,255,154,0.45);
+}
+
 /* tabs + buttons row */
 .pip-tabs{
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(119,255,154,0.14);
+  border-bottom: 1px solid var(--pip-border-2);
+}
+
+.pip-actions{
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pip-tab, .pip-btn{
@@ -100,7 +160,7 @@ body {
 
 .pip-panel{
   grid-column: span 12;
-  border: 1px solid rgba(119,255,154,0.18);
+  border: 1px solid var(--pip-border);
   background: rgba(0,0,0,0.28);
   border-radius: 16px;
   padding: 14px;
@@ -144,13 +204,19 @@ body {
   line-height: 1.2;
 }
 
-/* chart containers */
 .pip-chartwrap{
   border: 1px solid rgba(119,255,154,0.12);
   background: rgba(0,0,0,0.22);
   border-radius: 14px;
   padding: 10px;
   overflow: hidden;
+}
+
+.pip-tf{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 /* table */
@@ -173,55 +239,26 @@ body {
   text-align: left;
 }
 
-/* ✅ Vault avatar (new) */
+/* Avatar */
 .pip-avatarRow{
   display: flex;
   gap: 12px;
   align-items: center;
-  margin: 6px 0 12px;
-  padding: 10px;
-  border: 1px solid rgba(119,255,154,0.12);
-  border-radius: 14px;
-  background: rgba(0,0,0,0.18);
+  margin-bottom: 10px;
 }
 
 .pip-avatar{
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   border-radius: 14px;
-  border: 1px solid rgba(119,255,154,0.25);
-  background: radial-gradient(circle at 30% 20%, rgba(119,255,154,0.25), rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.35));
+  border: 1px solid rgba(119,255,154,0.18);
+  background: rgba(0,0,0,0.35);
   display: grid;
   place-items: center;
-  font-weight: 900;
-  letter-spacing: 1px;
-  position: relative;
   overflow: hidden;
 }
 
-.pip-avatar::after{
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.85;
-}
-
-/* Simple “character” silhouettes using SVG data URIs (no extra files needed) */
-.pip-avatar.boy::after{
-  background: center / 86% no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%2377ff9a' stroke-width='3'%3E%3Ccircle cx='32' cy='20' r='10'/%3E%3Cpath d='M16 56c2-14 12-20 16-20s14 6 16 20'/%3E%3Cpath d='M24 18c2-4 6-6 8-6s6 2 8 6'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-.pip-avatar.girl::after{
-  background: center / 86% no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%2377ff9a' stroke-width='3'%3E%3Ccircle cx='32' cy='20' r='10'/%3E%3Cpath d='M14 56c3-14 13-20 18-20s15 6 18 20'/%3E%3Cpath d='M22 18c2-5 7-7 10-7s8 2 10 7'/%3E%3Cpath d='M20 26c4 4 8 6 12 6s8-2 12-6'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-.pip-avatarName{
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-/* RESPONSIVE */
+/* RESPONSIVE FIXES */
 @media (min-width: 900px){
   .pip-panel:nth-child(1){ grid-column: span 6; }
   .pip-panel:nth-child(2){ grid-column: span 6; }
@@ -229,6 +266,7 @@ body {
 
 @media (max-width: 520px){
   .pip-topbar{ flex-direction: column; }
+  .pip-actions{ margin-left: 0; }
   .pip-k{ min-width: 90px; }
   .pip-tab, .pip-btn{ padding: 9px 10px; }
 }
