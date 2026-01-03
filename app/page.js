@@ -130,16 +130,7 @@ function CandleChart({ candles, height = 280 }) {
         return (
           <g key={i}>
             <line x1={x} y1={hi} x2={x} y2={lo} stroke={stroke} strokeWidth="2" />
-            <rect
-              x={x - bodyW / 2}
-              y={top}
-              width={bodyW}
-              height={bodyH}
-              fill={fill}
-              stroke={stroke}
-              strokeWidth="1.5"
-              rx="2"
-            />
+            <rect x={x - bodyW / 2} y={top} width={bodyW} height={bodyH} fill={fill} stroke={stroke} strokeWidth="1.5" rx="2" />
           </g>
         );
       })}
@@ -172,6 +163,7 @@ export default function Page() {
   const prices = payload?.prices || {};
 
   const pricesOk = heartbeat?.prices_ok === 1 || heartbeat?.prices_ok === true;
+  const paused = !!stats?.paused;
 
   async function fetchData(signal) {
     if (!dataUrl) {
@@ -232,16 +224,13 @@ export default function Page() {
     return res.json();
   }
 
-  const paused = !!stats?.paused;
-
   const pageStyle = {
     minHeight: "100vh",
     padding: 18,
     background:
       "radial-gradient(1200px 900px at 20% 10%, rgba(120,90,255,0.25), transparent 55%), radial-gradient(900px 800px at 70% 40%, rgba(0,200,255,0.15), transparent 55%), #070A12",
     color: "rgba(255,255,255,0.92)",
-    fontFamily:
-      "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
   };
 
   const card = {
@@ -291,41 +280,41 @@ export default function Page() {
     return "🐣";
   }, [pet?.stage]);
 
+  // TradingView widget URL (external)
+  const tvSymbol = "BINANCE:BTCUSDT";
+  const tvInterval = tf === "1m" ? "1" : tf === "5m" ? "5" : tf === "15m" ? "15" : tf === "30m" ? "30" : tf === "1h" ? "60" : "240";
+  const tvSrc =
+    "https://s.tradingview.com/widgetembed/?" +
+    new URLSearchParams({
+      symbol: tvSymbol,
+      interval: tvInterval,
+      hidetoptoolbar: "1",
+      hidelegend: "1",
+      saveimage: "0",
+      toolbarbg: "rgba(0,0,0,0)",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      enable_publishing: "0",
+      allow_symbol_change: "0",
+    }).toString();
+
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            marginBottom: 14,
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>
-              🚀 Crypto AI Dashboard
-            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>🚀 Crypto AI Dashboard</div>
             <div style={small}>
-              API: <span style={{ opacity: 0.95 }}>{apiBase || "—"}</span> ·
-              Refresh: {REFRESH_MS / 1000}s · Last update:{" "}
+              API: <span style={{ opacity: 0.95 }}>{apiBase || "—"}</span> · Refresh: {REFRESH_MS / 1000}s · Last update:{" "}
               {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"}
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button style={btn} onClick={() => fetchData(new AbortController().signal)}>
-              Refresh
-            </button>
-            <a
-              style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-              href={dataUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <button style={btn} onClick={() => fetchData(new AbortController().signal)}>Refresh</button>
+            <a style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={dataUrl} target="_blank" rel="noreferrer">
               Open /data
             </a>
             <button
@@ -358,28 +347,9 @@ export default function Page() {
         </div>
 
         {err && (
-          <div
-            style={{
-              ...card,
-              borderColor: "rgba(255,80,80,0.45)",
-              background: "rgba(255,80,80,0.10)",
-              marginBottom: 14,
-            }}
-          >
+          <div style={{ ...card, borderColor: "rgba(255,80,80,0.45)", background: "rgba(255,80,80,0.10)", marginBottom: 14 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>⚠️ Dashboard error</div>
-            <div
-              style={{
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                fontSize: 12,
-                opacity: 0.95,
-              }}
-            >
-              {err}
-            </div>
-            <div style={{ marginTop: 8, ...small }}>
-              If this says “Missing NEXT_PUBLIC_API_URL”, add it in Vercel and redeploy. If it says “API responded 404/500”, the API endpoint is wrong or down.
-            </div>
+            <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontSize: 12, opacity: 0.95 }}>{err}</div>
           </div>
         )}
 
@@ -389,17 +359,12 @@ export default function Page() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Heartbeat</div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <span style={pill(paused ? "rgba(255,200,80,0.15)" : "rgba(80,255,170,0.12)")}>
-                  {paused ? "⏸ Paused" : "✅ Running"}
-                </span>
-                <span style={pill(pricesOk ? "rgba(80,255,170,0.12)" : "rgba(255,80,80,0.12)")}>
-                  {pricesOk ? "Prices OK" : "Prices NOT OK"}
-                </span>
+                <span style={pill(paused ? "rgba(255,200,80,0.15)" : "rgba(80,255,170,0.12)")}>{paused ? "⏸ Paused" : "✅ Running"}</span>
+                <span style={pill(pricesOk ? "rgba(80,255,170,0.12)" : "rgba(255,80,80,0.12)")}>{pricesOk ? "Prices OK" : "Prices NOT OK"}</span>
                 <span style={pill("rgba(255,255,255,0.08)")}>Survival: {heartbeat?.survival_mode || "—"}</span>
               </div>
             </div>
 
-            {/* mobile-friendly auto grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginTop: 12 }}>
               <div>
                 <div style={small}>Equity</div>
@@ -433,9 +398,7 @@ export default function Page() {
               </div>
               <div>
                 <div style={small}>Last heartbeat</div>
-                <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, wordBreak: "break-word" }}>
-                  {heartbeat?.time_utc || "—"}
-                </div>
+                <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, wordBreak: "break-word" }}>{heartbeat?.time_utc || "—"}</div>
               </div>
             </div>
           </div>
@@ -448,30 +411,12 @@ export default function Page() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 10 }}>
-              <div>
-                <div style={small}>Stage</div>
-                <div style={{ fontWeight: 800 }}>{pet?.stage || "—"}</div>
-              </div>
-              <div>
-                <div style={small}>Mood</div>
-                <div style={{ fontWeight: 800 }}>{pet?.mood || "—"}</div>
-              </div>
-              <div>
-                <div style={small}>Health</div>
-                <div style={{ fontWeight: 800 }}>{fmtNum(pet?.health, 1)}</div>
-              </div>
-              <div>
-                <div style={small}>Hunger</div>
-                <div style={{ fontWeight: 800 }}>{fmtNum(pet?.hunger, 1)}</div>
-              </div>
-              <div>
-                <div style={small}>Growth</div>
-                <div style={{ fontWeight: 800 }}>{fmtNum(pet?.growth, 1)}</div>
-              </div>
-              <div>
-                <div style={small}>Fainted until</div>
-                <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.85 }}>{pet?.fainted_until_utc || "—"}</div>
-              </div>
+              <div><div style={small}>Stage</div><div style={{ fontWeight: 800 }}>{pet?.stage || "—"}</div></div>
+              <div><div style={small}>Mood</div><div style={{ fontWeight: 800 }}>{pet?.mood || "—"}</div></div>
+              <div><div style={small}>Health</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.health, 1)}</div></div>
+              <div><div style={small}>Hunger</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.hunger, 1)}</div></div>
+              <div><div style={small}>Growth</div><div style={{ fontWeight: 800 }}>{fmtNum(pet?.growth, 1)}</div></div>
+              <div><div style={small}>Fainted until</div><div style={{ fontWeight: 700, fontSize: 12, opacity: 0.85 }}>{pet?.fainted_until_utc || "—"}</div></div>
             </div>
 
             <div style={{ marginTop: 10, ...small }}>
@@ -479,7 +424,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Candlestick (NEW) */}
+          {/* Candles */}
           <div style={{ ...card, gridColumn: "span 7" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Candlestick Chart</div>
@@ -506,16 +451,25 @@ export default function Page() {
               </div>
             </div>
 
+            {/* TradingView (restored) */}
             <div style={{ marginTop: 12 }}>
-              <CandleChart candles={candles} height={280} />
+              <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>TradingView (external)</div>
+              <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)" }}>
+                <iframe title="TradingView" src={tvSrc} style={{ width: "100%", height: 320, border: 0 }} loading="lazy" />
+              </div>
             </div>
 
-            <div style={{ marginTop: 10, ...small, opacity: 0.8 }}>
-              Candles are built from your bot’s own /prices ticks.
+            {/* Bot candles */}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ ...small, marginBottom: 8, opacity: 0.85 }}>Bot candles (from your /prices ticks)</div>
+              <CandleChart candles={candles} height={260} />
+              <div style={{ marginTop: 8, ...small, opacity: 0.75 }}>
+                If this says “Not enough candle data yet”, your bot isn’t currently posting /ingest/prices.
+              </div>
             </div>
           </div>
 
-          {/* Trading Stats + equity line */}
+          {/* Trading Stats */}
           <div style={{ ...card, gridColumn: "span 12" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>Trading Stats</div>
@@ -525,22 +479,10 @@ export default function Page() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginTop: 12 }}>
-              <div>
-                <div style={small}>Total trades</div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{stats?.total_trades ?? "—"}</div>
-              </div>
-              <div>
-                <div style={small}>Win rate</div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{fmtPct(stats?.win_rate)}</div>
-              </div>
-              <div>
-                <div style={small}>Total PnL</div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{fmtMoney(stats?.total_pnl_usd)}</div>
-              </div>
-              <div>
-                <div style={small}>Deaths</div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{stats?.total_deaths ?? "—"}</div>
-              </div>
+              <div><div style={small}>Total trades</div><div style={{ fontWeight: 900, fontSize: 18 }}>{stats?.total_trades ?? "—"}</div></div>
+              <div><div style={small}>Win rate</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmtPct(stats?.win_rate)}</div></div>
+              <div><div style={small}>Total PnL</div><div style={{ fontWeight: 900, fontSize: 18 }}>{fmtMoney(stats?.total_pnl_usd)}</div></div>
+              <div><div style={small}>Deaths</div><div style={{ fontWeight: 900, fontSize: 18 }}>{stats?.total_deaths ?? "—"}</div></div>
             </div>
 
             <div style={{ marginTop: 12 }}>
@@ -587,17 +529,12 @@ export default function Page() {
             </div>
 
             <div style={{ marginTop: 10, ...small }}>
-              Prices snapshot:{" "}
-              <span style={{ opacity: 0.95 }}>
-                {Array.isArray(prices) && prices.length ? JSON.stringify(prices.slice(0, 3)) + "…" : "—"}
-              </span>
+              Prices snapshot: <span style={{ opacity: 0.95 }}>{Array.isArray(prices) && prices.length ? JSON.stringify(prices.slice(0, 3)) + "…" : "—"}</span>
             </div>
           </div>
         </div>
 
-        {loading && !payload && (
-          <div style={{ ...small, marginTop: 12, opacity: 0.9 }}>Loading dashboard data…</div>
-        )}
+        {loading && !payload && <div style={{ ...small, marginTop: 12, opacity: 0.9 }}>Loading dashboard data…</div>}
       </div>
     </div>
   );
