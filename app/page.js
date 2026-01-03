@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const REFRESH_MS = 5000;
@@ -60,7 +61,6 @@ function fmtMarkets(m) {
   try {
     if (Array.isArray(m)) return m.join(", ") || "—";
     if (typeof m === "string") {
-      // might be a JSON string like ["BTCUSDT","ETHUSDT"]
       const parsed = JSON.parse(m);
       if (Array.isArray(parsed)) return parsed.join(", ") || "—";
       return m || "—";
@@ -151,14 +151,7 @@ function CandleChart({ candles, height = 240 }) {
 
         return (
           <g key={`${c.t}-${i}`}>
-            <line
-              x1={x + bw / 2}
-              y1={yH}
-              x2={x + bw / 2}
-              y2={yL}
-              stroke="rgba(119,255,154,0.55)"
-              strokeWidth="1.1"
-            />
+            <line x1={x + bw / 2} y1={yH} x2={x + bw / 2} y2={yL} stroke="rgba(119,255,154,0.55)" strokeWidth="1.1" />
             <rect
               x={x}
               y={bodyTop}
@@ -215,7 +208,6 @@ export default function Page() {
       setPayload(json);
       setLastFetchAt(new Date());
 
-      // OHLC endpoint
       const o = await fetchJson(`${apiBase}/ohlc?market=${marketForCandles}&interval=${intervalSec}&limit=200`, signal);
       const normalized = normalizeCandles(o?.candles || o || []);
       setOhlc(normalized);
@@ -268,7 +260,8 @@ export default function Page() {
     return "ACTIVE";
   }, [stateMode]);
 
-  const tfLabel = intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : intervalSec === 900 ? "15M" : `${Math.floor(intervalSec / 60)}M`;
+  const tfLabel =
+    intervalSec === 60 ? "1M" : intervalSec === 300 ? "5M" : intervalSec === 900 ? "15M" : `${Math.floor(intervalSec / 60)}M`;
 
   return (
     <div className="pip-crt">
@@ -286,6 +279,13 @@ export default function Page() {
             <span className="pip-badge">{pricesOk ? "PRICES OK" : "PRICES FAIL"}</span>
             {countdown ? <span className="pip-badge">THAW: {countdown}</span> : null}
           </div>
+        </div>
+
+        {/* TOP NAV LINKS (new) */}
+        <div className="pip-links">
+          <Link className="pip-link" href="/">HOME</Link>
+          <Link className="pip-link" href="/candles">CANDLES</Link>
+          <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
         <div className="pip-tabs">
