@@ -1,5 +1,5 @@
 "use client";
-import "../globals.css";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -9,7 +9,7 @@ function normalizeCandles(raw) {
   const arr = Array.isArray(raw) ? raw : [];
   return arr
     .map((c) => {
-      const t = c?.t || c?.time_utc || c?.time || "";
+      const t = c?.t ?? c?.time_epoch ?? c?.time_utc ?? c?.time ?? "";
       const o = c?.o ?? c?.open;
       const h = c?.h ?? c?.high;
       const l = c?.l ?? c?.low;
@@ -20,7 +20,7 @@ function normalizeCandles(raw) {
       const ln = Number(l);
       const cn = Number(cl);
 
-      if (!t || [on, hn, ln, cn].some((x) => Number.isNaN(x))) return null;
+      if (t === "" || [on, hn, ln, cn].some((x) => !Number.isFinite(x))) return null;
       return { t, o: on, h: hn, l: ln, c: cn };
     })
     .filter(Boolean);
@@ -29,23 +29,35 @@ function normalizeCandles(raw) {
 function CandleChart({ candles, height = 360 }) {
   const containerRef = useRef(null);
   const [w, setW] = useState(520);
-
-  // Responsive width: match container width (phone-friendly)
-  useEffect(() => {
-    function measure() {
-      const el = containerRef.current;
-      if (!el) return;
-      const cw = Math.floor(el.getBoundingClientRect().width || 520);
-      setW(Math.max(320, Math.min(980, cw))); // clamp
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-
   const h = height;
 
-  // SHOW MORE CANDLES (denser)
+  // Responsive width (mobile friendly) using ResizeObserver when available
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const cw = Math.floor(el.getBoundingClientRect().width || 520);
+      setW(Math.max(320, Math.min(980, cw)));
+    };
+
+    measure();
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    } else {
+      window.addEventListener("resize", measure);
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      else window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  // show more history
   const data = (candles || []).slice(-200);
 
   if (data.length < 2) {
@@ -58,34 +70,33 @@ function CandleChart({ candles, height = 360 }) {
 
   const highs = data.map((c) => c.h);
   const lows = data.map((c) => c.l);
-  const maxY = Math.max(...highs);
-  const minY = Math.min(...lows);
+  const maxY0 = Math.max(...highs);
+  const minY0 = Math.min(...lows);
 
-  // Vertical padding so it doesn’t look overly zoomed
-  const pad = (maxY - minY) * 0.18 || 1;
-  const yMax = maxY + pad;
-  const yMin = minY - pad;
+  // Better auto-scale (prevents “zoomed” / weird ranges)
+  const range = maxY0 - minY0;
+  const pad = Math.max(range * 0.08, maxY0 * 0.0005, 0.5);
+  const yMax = maxY0 + pad;
+  const yMin = minY0 - pad;
+  const denom = yMax - yMin || 1;
 
   const toY = (y) => {
-    const t = (y - yMin) / (yMax - yMin);
+    const t = (y - yMin) / denom;
     return h - 12 - t * (h - 24);
   };
 
-  // THINNER candles: hard cap candle body width
-  // More candles visible on phone.
   const innerW = w - 24;
   const step = innerW / data.length;
 
-  // 1) Keep them thin (max 4px)
-  // 2) Keep minimum 1px so you always see them
-  const bw = Math.max(1, Math.min(4, step * 0.55));
+  // thin bodies, but always visible
+  const bw = Math.max(2, Math.min(6, step * 0.55));
 
   return (
     <div ref={containerRef} style={{ width: "100%" }}>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
         {/* grid */}
-        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1)" />
-        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2)" />
+        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1, rgba(119,255,154,0.18))" />
+        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2, rgba(119,255,154,0.10))" />
 
         {data.map((c, i) => {
           const xCenter = 12 + i * step + step / 2;
@@ -96,17 +107,26 @@ function CandleChart({ candles, height = 360 }) {
           const yL = toY(c.l);
 
           const up = c.c >= c.o;
-          const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
-          const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
+
+          // ✅ Strong red/green with CSS var fallbacks
+          const stroke = up
+            ? "var(--pip-up, rgba(0,255,160,0.95))"
+            : "var(--pip-down, rgba(255,80,80,0.95))";
+
+          const fill = up
+            ? "var(--pip-up-fill, rgba(0,255,160,0.22))"
+            : "var(--pip-down-fill, rgba(255,80,80,0.22))";
 
           const bodyTop = Math.min(yO, yC);
           const bodyBot = Math.max(yO, yC);
-          const bodyH = Math.max(2, bodyBot - bodyTop);
+
+          // ✅ Minimum body height so “flat” candles are still visible
+          const bodyH = Math.max(6, bodyBot - bodyTop);
 
           return (
             <g key={`${c.t}-${i}`}>
               {/* wick */}
-              <line x1={xCenter} y1={yH} x2={xCenter} y2={yL} stroke={stroke} strokeWidth="1.1" />
+              <line x1={xCenter} y1={yH} x2={xCenter} y2={yL} stroke={stroke} strokeWidth="1.4" />
               {/* body */}
               <rect
                 x={xCenter - bw / 2}
@@ -115,7 +135,8 @@ function CandleChart({ candles, height = 360 }) {
                 height={bodyH}
                 fill={fill}
                 stroke={stroke}
-                strokeWidth="1"
+                strokeWidth="1.2"
+                rx="1"
               />
             </g>
           );
@@ -178,6 +199,7 @@ export default function CandlesPage() {
 
       const data = await fetchJson(`${apiBase}/data`, signal);
       const hbMarkets = safeMarketsList(data?.heartbeat?.markets);
+
       if (hbMarkets.length) {
         setMarkets(hbMarkets);
         if (!hbMarkets.includes(market)) setMarket(hbMarkets[0]);
@@ -272,7 +294,7 @@ export default function CandlesPage() {
             </div>
 
             <div className="pip-muted" style={{ marginTop: 10 }}>
-              Thinner candles + shows more history (200 candles). Green = up, Red = down.
+              Shows 200 candles. Green = up, Red = down. Flat candles are drawn with a minimum body height so you can still see them.
             </div>
           </div>
         </div>
