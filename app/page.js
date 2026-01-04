@@ -43,7 +43,7 @@ export default function HomePage() {
 
   const [companion, setCompanion] = useState({
     name: "VAULT GIRL",
-    stage: "egg",
+    stage: "cryo",
     mood: "cryo",
     health: 100.0,
     hunger: 100.0,
@@ -119,24 +119,27 @@ export default function HomePage() {
         {};
 
       const name = String(pet?.name || "VAULT GIRL");
-      const stage = String(
-        pet?.stage || (pet?.hatched === true ? "hatched" : "egg")
-      );
-      const mood = String(pet?.mood || pet?.state || "neutral");
+      // If API says egg, we'll still show CRYO unless you want it dynamic.
+      // You asked for cryo tube, so we force stage to "cryo" below.
+      const mood = String(pet?.mood || pet?.state || "cryo");
 
       setCompanion({
         name,
-        stage,
+        stage: "cryo", // FORCE CRYO TUBE
         mood,
         health: Number(pet?.health ?? 100.0) || 0,
         hunger: Number(pet?.hunger ?? 100.0) || 0,
         growth: Number(pet?.growth ?? 0.0) || 0,
-        updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
+        updated: String(
+          pet?.updated || pet?.timestamp || data?.timestamp || "—"
+        ),
       });
 
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
-        const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
+        const lines = Array.isArray(logs)
+          ? logs
+          : logs?.lines || logs?.log || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
         setLogLines([]);
@@ -175,6 +178,7 @@ export default function HomePage() {
   return (
     <div className="pip-crt">
       <div className="pip-shell">
+        {/* Top Bar */}
         <div className="pip-topbar">
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
@@ -185,6 +189,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Main Nav */}
         <div className="pip-links">
           <Link className="pip-link active" href="/">
             HOME
@@ -197,6 +202,7 @@ export default function HomePage() {
           </Link>
         </div>
 
+        {/* Sub Nav */}
         <div className="pip-links">
           <button
             className={`pip-link ${tab === "status" ? "active" : ""}`}
@@ -221,6 +227,7 @@ export default function HomePage() {
           </button>
         </div>
 
+        {/* Error */}
         {err && (
           <div className="pip-content">
             <div className="pip-panel">
@@ -230,9 +237,11 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Content */}
         <div className="pip-content">
           {tab === "status" && (
             <>
+              {/* System Status */}
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
@@ -274,117 +283,71 @@ export default function HomePage() {
                 </div>
               </div>
 
+              {/* Vault Companion */}
               <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                <div className="pip-companion">
-                  <div style={{ width: "340px", maxWidth: "100%" }}>
-                    <div
-                      className="pip-petbox"
-                      style={{
-                        width: "320px",
-                        height: "360px",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <VaultGirlSVG
-                        mood={companion.mood}
-                        stage={companion.stage}
-                        vaultNumber="13"
-                      />
+                {/* SINGLE COLUMN: girl + info + stats UNDER */}
+                <div className="pip-companion-stack">
+                  <div className="pip-petbox">
+                    <VaultGirlSVG
+                      mood={companion.mood}
+                      stage="cryo"
+                      vaultNumber="13"
+                    />
+                  </div>
+
+                  {/* Name + quick info */}
+                  <div className="pip-underlabel">
+                    <div className="pip-underlabel-title">
+                      {String(companion.name || "VAULT GIRL")}
+                    </div>
+                    <div className="pip-underlabel-sub">
+                      stage: {String(companion.stage)} • mood:{" "}
+                      {String(companion.mood)}
+                    </div>
+                  </div>
+
+                  {/* Stats: now under the girl */}
+                  <div className="pip-stats-grid">
+                    <div className="pip-panel">
+                      <div className="pip-row">
+                        <div className="pip-k">HEALTH</div>
+                        <div className="pip-v">
+                          {Number(companion.health).toFixed(1)}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* ALL INFO UNDER THE BOX */}
-                    <div
-                      className="pip-muted"
-                      style={{
-                        marginTop: "10px",
-                        textAlign: "center",
-                        letterSpacing: "0.08em",
-                        lineHeight: 1.5,
-                        color: "#77ff9a",
-                      }}
-                    >
-                      <div style={{ fontWeight: 800 }}>
-                        {String(companion.name || "VAULT GIRL")}
+                    <div className="pip-panel">
+                      <div className="pip-row">
+                        <div className="pip-k">HUNGER</div>
+                        <div className="pip-v">
+                          {Number(companion.hunger).toFixed(1)}
+                        </div>
                       </div>
-                      <div style={{ opacity: 0.85 }}>
-                        stage: {String(companion.stage)} • mood:{" "}
-                        {String(companion.mood)}
+                    </div>
+
+                    <div className="pip-panel">
+                      <div className="pip-row">
+                        <div className="pip-k">GROWTH</div>
+                        <div className="pip-v">
+                          {Number(companion.growth).toFixed(1)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pip-panel">
+                      <div className="pip-row">
+                        <div className="pip-k">UPDATED</div>
+                        <div className="pip-v">{companion.updated}</div>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ flex: 1 }}>
-                    <div className="pip-grid">
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">NAME</div>
-                          <div className="pip-v">{companion.name}</div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">STAGE</div>
-                          <div className="pip-v">{companion.stage}</div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">MOOD</div>
-                          <div className="pip-v">{companion.mood}</div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">HEALTH</div>
-                          <div className="pip-v">
-                            {Number(companion.health).toFixed(1)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">HUNGER</div>
-                          <div className="pip-v">
-                            {Number(companion.hunger).toFixed(1)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
-                          <div className="pip-k">GROWTH</div>
-                          <div className="pip-v">
-                            {Number(companion.growth).toFixed(1)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel" style={{ gridColumn: "1 / -1" }}>
-                        <div className="pip-row">
-                          <div className="pip-k">UPDATED</div>
-                          <div className="pip-v">{companion.updated}</div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="pip-muted" style={{ marginTop: "12px" }}>
+                    Vault companion status updates with each trade.
                   </div>
-                </div>
-
-                <div
-                  className="pip-muted"
-                  style={{
-                    marginTop: "12px",
-                    paddingTop: "12px",
-                    borderTop: "1px dashed rgba(119,255,154,0.1)",
-                  }}
-                >
-                  Vault companion status updates with each trade.
                 </div>
               </div>
             </>
