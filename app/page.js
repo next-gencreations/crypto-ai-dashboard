@@ -1,5 +1,5 @@
 "use client";
-
+console.log("HOME loaded - css test");
 import Link from "next/link";
 import { useState } from "react";
 
