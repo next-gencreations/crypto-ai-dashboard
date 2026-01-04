@@ -3,327 +3,232 @@
 
 export default function VaultGirlSVG({
   mood = "cryo",
-  stage = "cryo", // default to cryo now
+  stage = "cryo",
   vaultNumber = "13",
 }) {
+  const line = "#77ff9a";
   const glow =
     mood === "happy"
-      ? "drop-shadow(0 0 12px rgba(119,255,154,.95))"
-      : mood === "cryo"
-      ? "drop-shadow(0 0 8px rgba(119,255,154,.55))"
-      : "drop-shadow(0 0 10px rgba(119,255,154,.75))";
-
-  const line = "#77ff9a";
-  const fillSoft = "rgba(119,255,154,0.14)";
-  const fillMid = "rgba(119,255,154,0.22)";
-  const glass = "rgba(119,255,154,0.06)";
-  const glassEdge = "rgba(119,255,154,0.30)";
-  const frost = "rgba(119,255,154,0.10)";
+      ? "drop-shadow(0 0 14px rgba(119,255,154,.9))"
+      : "drop-shadow(0 0 9px rgba(119,255,154,.6))";
 
   return (
     <svg
       viewBox="0 0 260 340"
       width="100%"
       height="100%"
-      aria-label="Vault Girl"
       role="img"
+      aria-label="Vault Girl"
       style={{ display: "block", filter: glow }}
     >
-      <defs>
-        {/* subtle glass sheen */}
-        <linearGradient id="glassSheen" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="rgba(119,255,154,0.00)" />
-          <stop offset="0.35" stopColor="rgba(119,255,154,0.10)" />
-          <stop offset="0.6" stopColor="rgba(119,255,154,0.03)" />
-          <stop offset="1" stopColor="rgba(119,255,154,0.00)" />
-        </linearGradient>
-
-        {/* inner glow */}
-        <radialGradient id="innerGlow" cx="50%" cy="35%" r="70%">
-          <stop offset="0" stopColor="rgba(119,255,154,0.18)" />
-          <stop offset="1" stopColor="rgba(119,255,154,0.00)" />
-        </radialGradient>
-      </defs>
-
-      {/* BACKPLATE (keeps your pip-boy framed feel) */}
+      {/* PANEL FRAME */}
       <rect
         x="10"
         y="10"
         width="240"
         height="320"
         rx="18"
-        fill="rgba(0,0,0,0.22)"
-        stroke="rgba(119,255,154,0.22)"
+        fill="rgba(0,0,0,0.25)"
+        stroke="rgba(119,255,154,0.25)"
         strokeWidth="2"
       />
 
       {/* CRYO TUBE */}
       {stage === "cryo" && (
         <>
-          {/* base plate */}
           <rect
-            x="62"
-            y="290"
-            width="136"
-            height="22"
-            rx="10"
-            fill="rgba(0,0,0,0.22)"
-            stroke="rgba(119,255,154,0.22)"
+            x="70"
+            y="36"
+            width="120"
+            height="260"
+            rx="60"
+            fill="rgba(119,255,154,0.05)"
+            stroke="rgba(119,255,154,0.28)"
             strokeWidth="2"
           />
+          {/* glass shine */}
           <rect
-            x="80"
-            y="296"
-            width="100"
-            height="10"
+            x="86"
+            y="46"
+            width="16"
+            height="240"
+            rx="8"
+            fill="rgba(119,255,154,0.12)"
+            opacity="0.6"
+          />
+          {/* base */}
+          <rect
+            x="82"
+            y="292"
+            width="96"
+            height="12"
             rx="6"
-            fill="rgba(119,255,154,0.08)"
+            fill="rgba(119,255,154,0.12)"
           />
-
-          {/* outer capsule */}
-          <path
-            d="M80 58
-               Q80 40 100 40
-               H160
-               Q180 40 180 58
-               V286
-               Q180 304 160 304
-               H100
-               Q80 304 80 286
-               Z"
-            fill={glass}
-            stroke={glassEdge}
-            strokeWidth="2"
-          />
-
-          {/* inner glow wash */}
-          <ellipse cx="130" cy="165" rx="84" ry="120" fill="url(#innerGlow)" />
-
-          {/* glass sheen strip */}
-          <rect
-            x="96"
-            y="48"
-            width="18"
-            height="248"
-            rx="9"
-            fill="url(#glassSheen)"
-            opacity="0.9"
-          />
-
-          {/* frost patches */}
-          <path
-            d="M95 78 Q112 70 120 86 Q110 96 96 92 Z"
-            fill={frost}
-            opacity="0.8"
-          />
-          <path
-            d="M168 110 Q154 104 148 120 Q156 128 170 126 Z"
-            fill={frost}
-            opacity="0.7"
-          />
-          <path
-            d="M92 210 Q112 198 124 216 Q110 232 94 226 Z"
-            fill={frost}
-            opacity="0.75"
-          />
-
-          {/* bubbles */}
-          <circle cx="150" cy="250" r="3" fill="rgba(119,255,154,0.22)" />
-          <circle cx="108" cy="238" r="2" fill="rgba(119,255,154,0.18)" />
-          <circle cx="165" cy="220" r="2.5" fill="rgba(119,255,154,0.18)" />
-          <circle cx="120" cy="200" r="2.2" fill="rgba(119,255,154,0.16)" />
-          <circle cx="145" cy="170" r="1.8" fill="rgba(119,255,154,0.14)" />
         </>
       )}
 
-      {/* ===== VAULT GIRL (more feminine silhouette) ===== */}
+      {/* ===== VAULT GIRL ===== */}
 
-      {/* hair (longer + side sweep) */}
+      {/* Hair (cartoon bob) */}
       <path
-        d="M92 84
-           Q100 52 130 48
-           Q162 52 170 86
-           Q162 76 148 74
-           Q142 60 130 60
-           Q118 60 112 74
-           Q98 76 92 84 Z"
-        fill="rgba(119,255,154,0.30)"
-      />
-      {/* long hair behind shoulders */}
-      <path
-        d="M98 92
-           Q90 126 98 150
-           Q104 168 118 178
-           Q106 150 112 120
-           Q115 104 98 92 Z"
-        fill="rgba(119,255,154,0.18)"
+        d="M96 74
+           Q130 40 164 74
+           Q162 64 150 60
+           Q130 54 110 60
+           Q98 64 96 74 Z"
+        fill="rgba(119,255,154,0.35)"
       />
       <path
-        d="M162 92
-           Q172 128 164 152
-           Q158 170 142 182
-           Q156 154 150 122
-           Q146 104 162 92 Z"
-        fill="rgba(119,255,154,0.18)"
+        d="M98 74
+           Q90 110 104 130
+           Q102 102 112 82 Z"
+        fill="rgba(119,255,154,0.2)"
+      />
+      <path
+        d="M162 74
+           Q170 110 156 130
+           Q158 102 148 82 Z"
+        fill="rgba(119,255,154,0.2)"
       />
 
-      {/* head */}
+      {/* Head */}
       <ellipse
         cx="130"
-        cy="86"
-        rx="30"
-        ry="36"
-        fill="rgba(119,255,154,0.16)"
+        cy="90"
+        rx="28"
+        ry="32"
+        fill="rgba(119,255,154,0.18)"
         stroke={line}
         strokeWidth="3"
       />
 
-      {/* eyes + lashes */}
-      <circle cx="120" cy="88" r="3" fill={line} />
-      <circle cx="140" cy="88" r="3" fill={line} />
-      <path
-        d="M114 82 L118 80"
-        stroke={line}
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.75"
-      />
-      <path
-        d="M146 82 L142 80"
-        stroke={line}
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.75"
-      />
+      {/* Eyes */}
+      <circle cx="120" cy="92" r="3.5" fill={line} />
+      <circle cx="140" cy="92" r="3.5" fill={line} />
 
-      {/* mouth (slightly softer) */}
+      {/* Smile */}
       {mood === "happy" ? (
         <path
           d="M118 104 Q130 112 142 104"
           stroke={line}
           strokeWidth="2"
           fill="none"
-          opacity="0.95"
         />
-      ) : mood === "cryo" ? (
+      ) : (
         <path
-          d="M118 106 Q130 102 142 106"
+          d="M120 106 Q130 108 140 106"
           stroke={line}
           strokeWidth="2"
           fill="none"
-          opacity="0.75"
+          opacity="0.8"
         />
-      ) : (
-        <line x1="118" y1="106" x2="142" y2="106" stroke={line} strokeWidth="2" />
       )}
 
-      {/* neck */}
-      <path
-        d="M122 120 Q130 126 138 120"
-        stroke={line}
-        strokeWidth="3"
-        fill="none"
-        opacity="0.8"
+      {/* Neck */}
+      <rect
+        x="124"
+        y="120"
+        width="12"
+        height="10"
+        rx="6"
+        fill="rgba(119,255,154,0.25)"
       />
 
-      {/* body (waist + hips) */}
+      {/* BODY (female silhouette) */}
       <path
-        d="M102 128
-           Q130 112 158 128
-           V206
-           Q158 224 146 232
-           Q130 244 114 232
-           Q102 224 102 206
-           Z"
-        fill={fillSoft}
+        d="M104 130
+           Q130 118 156 130
+           Q164 146 158 164
+           Q154 176 148 178
+           Q136 182 130 182
+           Q124 182 112 178
+           Q106 176 102 164
+           Q96 146 104 130 Z"
+        fill="rgba(119,255,154,0.18)"
         stroke={line}
         strokeWidth="3"
       />
 
-      {/* collar / little bow */}
+      {/* Chest (subtle, cartoon) */}
       <path
-        d="M118 132 Q130 144 142 132"
+        d="M118 144 Q124 150 130 150 Q136 150 142 144"
         stroke={line}
         strokeWidth="2"
         fill="none"
-        opacity="0.65"
+        opacity="0.7"
       />
-      <circle cx="130" cy="140" r="2" fill={line} opacity="0.55" />
 
-      {/* zipper */}
+      {/* Zipper */}
       <line
         x1="130"
-        y1="128"
+        y1="130"
         x2="130"
-        y2="226"
+        y2="182"
         stroke={line}
         strokeWidth="2"
         opacity="0.35"
       />
 
-      {/* vault number */}
+      {/* Vault number */}
       <text
         x="130"
-        y="182"
+        y="170"
         textAnchor="middle"
-        fontSize="22"
+        fontSize="20"
         fill={line}
         opacity="0.85"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+        fontFamily="ui-monospace, monospace"
       >
         {vaultNumber}
       </text>
 
-      {/* arms (slimmer + slight curve) */}
+      {/* Hips */}
       <path
-        d="M104 148 Q82 166 92 196"
+        d="M112 182
+           Q130 192 148 182
+           V210
+           Q130 224 112 210 Z"
+        fill="rgba(119,255,154,0.18)"
         stroke={line}
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.95"
-      />
-      <path
-        d="M156 148 Q178 166 168 196"
-        stroke={line}
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.95"
+        strokeWidth="3"
       />
 
-      {/* legs (slimmer) */}
+      {/* Arms */}
       <path
-        d="M122 232 Q110 270 120 304"
+        d="M104 146 Q82 166 92 196"
         stroke={line}
         strokeWidth="6"
         fill="none"
         strokeLinecap="round"
       />
       <path
-        d="M138 232 Q150 270 140 304"
+        d="M156 146 Q178 166 168 196"
         stroke={line}
         strokeWidth="6"
         fill="none"
         strokeLinecap="round"
       />
 
-      {/* shoes */}
-      <ellipse cx="118" cy="308" rx="10" ry="5" fill="rgba(119,255,154,0.22)" />
-      <ellipse cx="142" cy="308" rx="10" ry="5" fill="rgba(119,255,154,0.22)" />
+      {/* Legs */}
+      <path
+        d="M122 210 Q112 250 120 300"
+        stroke={line}
+        strokeWidth="6"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M138 210 Q148 250 140 300"
+        stroke={line}
+        strokeWidth="6"
+        fill="none"
+        strokeLinecap="round"
+      />
 
-      {/* EGG overlay (still supported if you ever use it) */}
-      {stage === "egg" && (
-        <ellipse
-          cx="130"
-          cy="176"
-          rx="60"
-          ry="82"
-          fill="rgba(119,255,154,0.07)"
-          stroke="rgba(119,255,154,0.28)"
-          strokeWidth="2"
-        />
-      )}
+      {/* Feet */}
+      <ellipse cx="118" cy="304" rx="10" ry="5" fill="rgba(119,255,154,0.25)" />
+      <ellipse cx="142" cy="304" rx="10" ry="5" fill="rgba(119,255,154,0.25)" />
     </svg>
   );
 }
