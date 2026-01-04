@@ -1,5 +1,13 @@
-/* PIP-TRADE 3000 theme (safe defaults) */
 
+/* PIP-TRADE 3000 theme (safe defaults) */
+body::before{
+  content:"CSS LOADED";
+  position:fixed;
+  top:6px;
+  right:10px;
+  font-size:12px;
+  opacity:0.6;
+}
 html, body {
   background: #001b0d !important;
   color: #77ff9a !important;
