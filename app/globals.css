@@ -1,72 +1,14 @@
-html, body { background: #06110a !important; color: rgba(119,255,154,0.92) !important; }/* ===== Full body companion stage ===== */
-.pip-pet-stage{
-  border: 1px solid rgba(119,255,154,0.12);
-  background: rgba(0,0,0,0.22);
-  border-radius: 16px;
-  padding: 12px;
-  overflow: hidden;
-}
+import "./globals.css";
 
-.pip-pet-floor{
-  height: 1px;
-  margin-top: 10px;
-  background: rgba(119,255,154,0.14);
-  box-shadow: 0 0 18px rgba(119,255,154,0.08);
-}
+export const metadata = {
+  title: "PIP-TRADE 3000",
+  description: "Crypto AI dashboard",
+};
 
-.pip-pet{
-  width: 120px;
-  height: 180px;
-  position: relative;
-  will-change: transform;
-}
-
-.pip-pet img{
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-  filter: saturate(1.1) contrast(1.05);
-}
-
-/* Idle = gentle bounce */
-.pip-pet.idle{
-  animation: petIdle 1.6s ease-in-out infinite;
-}
-
-/* Walk = side to side */
-.pip-pet.walk{
-  animation: petWalk 4.5s linear infinite;
-}
-
-/* Slow = slower walk */
-.pip-pet.slow{
-  animation: petWalk 8s linear infinite;
-  opacity: 0.9;
-}
-
-/* Stomp = little shake */
-.pip-pet.stomp{
-  animation: petStomp 0.5s ease-in-out infinite;
-}
-
-/* Panic = faster run */
-.pip-pet.panic{
-  animation: petWalk 2.4s linear infinite;
-}
-
-@keyframes petIdle{
-  0%,100%{ transform: translateY(0px); }
-  50%{ transform: translateY(-5px); }
-}
-
-@keyframes petWalk{
-  0%{ transform: translateX(0px); }
-  50%{ transform: translateX(170px); }
-  100%{ transform: translateX(0px); }
-}
-
-@keyframes petStomp{
-  0%,100%{ transform: translateX(0px) translateY(0px); }
-  50%{ transform: translateX(3px) translateY(-2px); }
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
 }
