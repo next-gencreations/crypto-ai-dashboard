@@ -1,8 +1,8 @@
 "use client";
-console.log("HOME loaded - css test");
+
 import Link from "next/link";
 import { useState } from "react";
-
+console.log("HOME loaded - css test");
 function TradingViewEmbed({ symbol = "BINANCE:BTCUSDT", interval = "5" }) {
   const src =
     "https://s.tradingview.com/widgetembed/?" +
