@@ -224,3 +224,37 @@ html, body {
   opacity:0.85;
   font-size:12px;
 }
+.pip-code{
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--pip-border);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(0,0,0,0.25);
+}
+
+.pip-petbox{
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--pip-border);
+  background: rgba(0,0,0,0.18);
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.pip-petlabel{
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+@keyframes pipBob { 0%{transform:translateY(0)} 50%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
+@keyframes pipShake { 0%{transform:translateX(0)} 25%{transform:translateX(-2px)} 50%{transform:translateX(2px)} 75%{transform:translateX(-2px)} 100%{transform:translateX(0)} }
+
+.pip-bob{ animation: pipBob 1.8s ease-in-out infinite; }
+.pip-shake{ animation: pipShake 0.25s linear infinite; }
