@@ -20,53 +20,138 @@ function safeMarketsList(m) {
   }
 }
 
-function pct(n) {
-  const x = Number(n);
-  if (Number.isNaN(x)) return "—";
-  return x.toFixed(1);
+function clamp01(x) {
+  const n = Number(x);
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, n));
 }
 
-/** Simple full-body “Vault” character (SVG) */
+function moodFromState(survival, moodRaw) {
+  const s = String(survival || "").toLowerCase();
+  const m = String(moodRaw || "").toLowerCase();
+  if (m.includes("cryo")) return "cryo";
+  if (m.includes("panic")) return "panic";
+  if (m.includes("sick")) return "sick";
+  if (m.includes("happy")) return "happy";
+  if (s.includes("starv") || s.includes("sick")) return "sick";
+  return "neutral";
+}
+
 function VaultDude({ mood = "neutral", sex = "boy" }) {
   const label = sex === "girl" ? "VAULT GIRL" : "VAULT BOY";
-  const face =
-    mood === "panic"
-      ? "😱"
-      : mood === "happy"
-      ? "🙂"
-      : mood === "cryo"
-      ? "🥶"
-      : mood === "angry"
-      ? "😠"
-      : "😐";
 
-  // tiny idle bob
-  const anim = mood === "panic" ? "pip-shake" : "pip-bob";
+  const isWalk = mood === "happy" || mood === "neutral";
+  const isPanic = mood === "panic";
+  const isSick = mood === "sick";
+  const isCryo = mood === "cryo";
+
+  const animClass = isPanic ? "pip-shake" : isWalk ? "pip-walk" : "pip-bob";
+
+  const face =
+    isPanic
+      ? { brows: "M70 60 Q110 45 150 60", mouth: "M90 95 Q110 110 130 95" }
+      : isSick
+      ? { brows: "M70 58 Q110 52 150 58", mouth: "M92 98 Q110 90 128 98" }
+      : isCryo
+      ? { brows: "M70 58 Q110 50 150 58", mouth: "M95 98 Q110 104 125 98" }
+      : { brows: "M70 58 Q110 50 150 58", mouth: "M92 96 Q110 108 128 96" };
+
+  const statusText = isPanic ? "PANIC" : isSick ? "SICK" : isCryo ? "CRYO" : "OK";
 
   return (
-    <div className={`pip-petbox ${anim}`} aria-label={label}>
-      <svg viewBox="0 0 220 220" width="100%" height="100%">
-        {/* glow frame */}
-        <rect x="8" y="8" width="204" height="204" rx="18" fill="rgba(0,0,0,0.25)" stroke="var(--pip-border)" />
-        {/* body */}
-        <g transform="translate(0,5)">
-          {/* head */}
-          <circle cx="110" cy="72" r="28" fill="rgba(119,255,154,0.18)" stroke="var(--pip-ink)" strokeWidth="2" />
-          {/* face */}
-          <text x="110" y="80" textAnchor="middle" fontSize="22" fill="var(--pip-ink)">
-            {face}
+    <div className={`pip-petbox ${animClass}`} aria-label={label}>
+      <svg viewBox="0 0 260 260" width="100%" height="100%">
+        <rect x="10" y="10" width="240" height="240" rx="18" fill="rgba(0,0,0,0.25)" stroke="var(--pip-border)" />
+        <rect x="14" y="14" width="232" height="232" rx="16" fill="rgba(0,0,0,0.12)" />
+
+        <g className="pip-mascot" transform="translate(0,2)">
+          <circle cx="130" cy="78" r="34" fill="rgba(119,255,154,0.10)" stroke="var(--pip-ink)" strokeWidth="2" />
+          <path
+            d="M102 70 Q110 48 130 50 Q150 48 158 66 Q148 58 140 60 Q130 58 122 62 Q112 60 102 70"
+            fill="rgba(119,255,154,0.18)"
+            stroke="var(--pip-ink)"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <circle cx="118" cy="82" r="3" fill="var(--pip-ink)" opacity="0.9" />
+          <circle cx="142" cy="82" r="3" fill="var(--pip-ink)" opacity="0.9" />
+          <path d={face.brows} fill="none" stroke="var(--pip-ink)" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+          <path d={face.mouth} fill="none" stroke="var(--pip-ink)" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+
+          <path
+            d="M105 112
+               Q130 98 155 112
+               Q168 120 168 142
+               L168 160
+               Q168 175 155 182
+               L105 182
+               Q92 175 92 160
+               L92 142
+               Q92 120 105 112 Z"
+            fill="rgba(119,255,154,0.10)"
+            stroke="var(--pip-ink)"
+            strokeWidth="2"
+          />
+          <line x1="130" y1="112" x2="130" y2="182" stroke="var(--pip-ink)" strokeWidth="2" opacity="0.35" />
+          <path d="M112 120 Q130 134 148 120" fill="none" stroke="var(--pip-ink)" strokeWidth="2" opacity="0.55" />
+
+          <g className="pip-arm pip-arm-left">
+            <path
+              d="M92 138 Q74 142 70 156 Q68 164 74 168 Q84 172 96 164"
+              fill="rgba(119,255,154,0.10)"
+              stroke="var(--pip-ink)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <circle cx="74" cy="166" r="6" fill="rgba(119,255,154,0.10)" stroke="var(--pip-ink)" strokeWidth="2" />
+          </g>
+
+          <g className="pip-arm pip-arm-right">
+            <path
+              d="M168 138 Q186 142 190 156 Q192 164 186 168 Q176 172 164 164"
+              fill="rgba(119,255,154,0.10)"
+              stroke="var(--pip-ink)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <circle cx="186" cy="166" r="6" fill="rgba(119,255,154,0.10)" stroke="var(--pip-ink)" strokeWidth="2" />
+          </g>
+
+          <g className="pip-leg pip-leg-left">
+            <path
+              d="M118 182 Q110 198 112 212 Q114 226 126 232 Q132 234 134 228 Q126 222 126 212 Q126 196 132 182 Z"
+              fill="rgba(119,255,154,0.10)"
+              stroke="var(--pip-ink)"
+              strokeWidth="2"
+            />
+            <path d="M112 232 Q126 242 140 234" fill="none" stroke="var(--pip-ink)" strokeWidth="2" opacity="0.8" />
+          </g>
+
+          <g className="pip-leg pip-leg-right">
+            <path
+              d="M142 182 Q150 198 148 212 Q146 226 134 232 Q128 234 126 228 Q134 222 134 212 Q134 196 128 182 Z"
+              fill="rgba(119,255,154,0.10)"
+              stroke="var(--pip-ink)"
+              strokeWidth="2"
+            />
+            <path d="M120 234 Q134 242 148 232" fill="none" stroke="var(--pip-ink)" strokeWidth="2" opacity="0.8" />
+          </g>
+
+          <circle cx="154" cy="150" r="10" fill="rgba(0,0,0,0.18)" stroke="var(--pip-ink)" strokeWidth="2" opacity="0.9" />
+          <text x="154" y="154" textAnchor="middle" fontSize="10" fill="var(--pip-ink)" opacity="0.9">
+            3000
           </text>
+        </g>
 
-          {/* torso */}
-          <rect x="82" y="102" width="56" height="58" rx="10" fill="rgba(119,255,154,0.12)" stroke="var(--pip-ink)" strokeWidth="2" />
+        <text x="24" y="40" fontSize="16" fill="var(--pip-ink)" opacity="0.9">
+          {label}
+        </text>
 
-          {/* arms */}
-          <rect x="55" y="112" width="25" height="12" rx="6" fill="rgba(119,255,154,0.12)" stroke="var(--pip-ink)" strokeWidth="2" />
-          <rect x="140" y="112" width="25" height="12" rx="6" fill="rgba(119,255,154,0.12)" stroke="var(--pip-ink)" strokeWidth="2" />
-
-          {/* legs */}
-          <rect x="92" y="162" width="16" height="28" rx="6" fill="rgba(119,255,154,0.12)" stroke="var(--pip-ink)" strokeWidth="2" />
-          <rect x="112" y="162" width="16" height="28" rx="6" fill="rgba(119,255,154,0.12)" stroke="var(--pip-ink)" strokeWidth="2" />
+        <g opacity="0.9">
+          <rect x="24" y="214" width="212" height="22" rx="10" fill="rgba(0,0,0,0.25)" stroke="var(--pip-border)" />
+          <text x="36" y="230" fontSize="12" fill="var(--pip-ink)" opacity="0.9">
+            STATUS: {statusText}
+          </text>
         </g>
       </svg>
 
@@ -79,67 +164,78 @@ export default function HomePage() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
 
   const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
   const [lastFetchAt, setLastFetchAt] = useState(null);
-  const [tab, setTab] = useState("STATUS"); // STATUS | DATA | LOG
 
-  const [data, setData] = useState(null);
+  const [tab, setTab] = useState("status"); // status | data | log
 
-  async function fetchJson(url) {
-    const res = await fetch(url, { cache: "no-store" });
+  const [heartbeat, setHeartbeat] = useState(null);
+  const [companion, setCompanion] = useState(null);
+  const [events, setEvents] = useState([]);
+
+  async function fetchJson(url, signal) {
+    const res = await fetch(url, { cache: "no-store", signal });
     if (!res.ok) throw new Error(`API responded ${res.status}`);
     return res.json();
   }
 
-  async function load() {
+  async function fetchAll(signal) {
     if (!apiBase) {
       setErr("Missing NEXT_PUBLIC_API_URL in Vercel environment variables.");
-      setLoading(false);
       return;
     }
-
     try {
       setErr("");
-      const d = await fetchJson(`${apiBase}/data`);
-      setData(d);
+      const data = await fetchJson(`${apiBase}/data`, signal);
+
+      setHeartbeat(data?.heartbeat || null);
+      setCompanion(data?.companion || data?.pet || null);
+      setEvents(Array.isArray(data?.events) ? data.events : []);
       setLastFetchAt(new Date());
     } catch (e) {
+      if (e?.name === "AbortError") return;
       setErr(String(e?.message || e));
-    } finally {
-      setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
-    const t = setInterval(load, REFRESH_MS);
-    return () => clearInterval(t);
+    const ac = new AbortController();
+    fetchAll(ac.signal);
+
+    const t = setInterval(() => {
+      const ac2 = new AbortController();
+      fetchAll(ac2.signal);
+      setTimeout(() => ac2.abort(), 8000);
+    }, REFRESH_MS);
+
+    return () => {
+      ac.abort();
+      clearInterval(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase]);
 
-  const hb = data?.heartbeat || {};
-  const pet = data?.pet || {};
-  const ctrl = data?.control || {};
-  const state = (data?.state || ctrl?.state || "ACTIVE").toString().toUpperCase();
+  const equity = heartbeat?.equity_usd ?? heartbeat?.equity ?? 0;
+  const markets = safeMarketsList(heartbeat?.markets);
+  const openPositions = heartbeat?.open_positions ?? heartbeat?.openPositions ?? 0;
+  const survival = heartbeat?.survival ?? heartbeat?.state ?? "—";
+  const lastHb = heartbeat?.time_utc || heartbeat?.last_heartbeat || "—";
 
-  const markets = useMemo(() => safeMarketsList(hb?.markets), [hb?.markets]);
+  const name = companion?.name || "VAULT BOY";
+  const stage = companion?.stage || "egg";
+  const moodRaw = companion?.mood || "neutral";
+  const health = clamp01(companion?.health);
+  const hunger = clamp01(companion?.hunger);
+  const growth = clamp01(companion?.growth);
+  const updated = companion?.time_utc || companion?.updated || "—";
 
-  const equity = Number(hb?.equity_usd ?? 0);
-  const openPositions = Number(hb?.open_positions ?? 0);
-  const survival = (hb?.survival_mode || hb?.survival || "NORMAL").toString();
-  const lastHb = hb?.time_utc || "—";
+  const mood = moodFromState(survival, moodRaw);
 
-  const petSex = (pet?.sex || "boy").toString();
-  const petName = petSex === "girl" ? "VAULT GIRL" : "VAULT BOY";
-  const petStage = (pet?.stage || "egg").toString();
-  const petMood = (pet?.mood || "neutral").toString();
-  const petHealth = pct(pet?.health ?? 0);
-  const petHunger = pct(pet?.hunger ?? 0);
-  const petGrowth = pct(pet?.growth ?? 0);
-  const petUpdated = pet?.time_utc || "—";
-
-  const events = Array.isArray(data?.events) ? data.events : [];
-  const deaths = Array.isArray(data?.deaths) ? data.deaths : [];
+  const subtitle = useMemo(() => {
+    const state = heartbeat?.state || "ACTIVE";
+    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${
+      lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"
+    } · State: ${state}`;
+  }, [apiBase, lastFetchAt, heartbeat]);
 
   return (
     <div className="pip-crt">
@@ -147,11 +243,9 @@ export default function HomePage() {
         <div className="pip-topbar">
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
-            <div className="pip-sub wrap">
-              Home · API: {apiBase || "—"} · Refresh: {REFRESH_MS / 1000}s · Last:{" "}
-              {lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—"} · State: {state}
-            </div>
+            <div className="pip-sub wrap">{subtitle}</div>
           </div>
+          <div className="pip-topbar-right">CSS LOADED</div>
         </div>
 
         <div className="pip-links">
@@ -160,150 +254,107 @@ export default function HomePage() {
           <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
-        <div className="pip-content">
-          {err && (
-            <div className="pip-panel" style={{ marginBottom: 12 }}>
+        <div className="pip-tabs">
+          <button className={`pip-tab ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")}>
+            STATUS
+          </button>
+          <button className={`pip-tab ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")}>
+            DATA
+          </button>
+          <button className={`pip-tab ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")}>
+            LOG
+          </button>
+        </div>
+
+        {err && (
+          <div className="pip-content">
+            <div className="pip-panel">
               <div className="pip-heading">ERROR</div>
               <div className="wrap">{err}</div>
             </div>
-          )}
-
-          {/* STATUS / DATA / LOG buttons */}
-          <div className="pip-row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button className={`pip-tab ${tab === "STATUS" ? "active" : ""}`} onClick={() => setTab("STATUS")}>
-              STATUS
-            </button>
-            <button className={`pip-tab ${tab === "DATA" ? "active" : ""}`} onClick={() => setTab("DATA")}>
-              DATA
-            </button>
-            <button className={`pip-tab ${tab === "LOG" ? "active" : ""}`} onClick={() => setTab("LOG")}>
-              LOG
-            </button>
           </div>
+        )}
 
-          {tab === "STATUS" && (
+        <div className="pip-content">
+          {tab === "status" && (
             <>
-              <div className="pip-panel" style={{ marginBottom: 12 }}>
+              <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
-                {loading && !data ? (
-                  <div className="pip-muted">Loading…</div>
-                ) : (
-                  <>
-                    <div className="pip-row">
-                      <div className="pip-k">Equity</div>
-                      <div className="pip-v">US${equity.toFixed(2)}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Markets</div>
-                      <div className="pip-v">{markets.length ? markets.join(", ") : "—"}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Open positions</div>
-                      <div className="pip-v">{openPositions}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Survival</div>
-                      <div className="pip-v">{survival}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Last heartbeat</div>
-                      <div className="pip-v wrap">{lastHb}</div>
-                    </div>
-                  </>
-                )}
+                <div className="pip-grid">
+                  <div className="pip-k">Equity</div>
+                  <div className="pip-v">US${Number(equity).toFixed(2)}</div>
+
+                  <div className="pip-k">Markets</div>
+                  <div className="pip-v">{markets.length ? markets.join(", ") : "—"}</div>
+
+                  <div className="pip-k">Open positions</div>
+                  <div className="pip-v">{openPositions}</div>
+
+                  <div className="pip-k">Survival</div>
+                  <div className="pip-v">{String(survival).toUpperCase()}</div>
+
+                  <div className="pip-k">Last heartbeat</div>
+                  <div className="pip-v">{String(lastHb)}</div>
+                </div>
               </div>
 
-              <div className="pip-panel">
+              <div className="pip-panel" style={{ marginTop: 14 }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                <div className="pip-row" style={{ gap: 12, alignItems: "stretch", flexWrap: "wrap" }}>
-                  <div style={{ width: 170, height: 170, flex: "0 0 auto" }}>
-                    <VaultDude mood={petMood} sex={petSex} />
+                <div className="pip-row" style={{ gap: 14, alignItems: "stretch" }}>
+                  <div style={{ width: 210, maxWidth: "48vw" }}>
+                    <VaultDude mood={mood} sex="boy" />
                   </div>
 
-                  <div style={{ flex: "1 1 240px" }}>
-                    <div className="pip-row">
-                      <div className="pip-k">Name</div>
-                      <div className="pip-v">{petName}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Stage</div>
-                      <div className="pip-v">{petStage}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Mood</div>
-                      <div className="pip-v">{petMood}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Health</div>
-                      <div className="pip-v">{petHealth}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Hunger</div>
-                      <div className="pip-v">{petHunger}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Growth</div>
-                      <div className="pip-v">{petGrowth}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">Updated</div>
-                      <div className="pip-v wrap">{petUpdated}</div>
-                    </div>
-                  </div>
-                </div>
+                  <div className="pip-grid" style={{ flex: 1, alignContent: "start" }}>
+                    <div className="pip-k">Name</div>
+                    <div className="pip-v">{name}</div>
 
-                <div className="pip-muted" style={{ marginTop: 10 }}>
-                  Full animated walk/idle next — this is a starter full-body figure so you can see something now.
+                    <div className="pip-k">Stage</div>
+                    <div className="pip-v">{stage}</div>
+
+                    <div className="pip-k">Mood</div>
+                    <div className="pip-v">{mood}</div>
+
+                    <div className="pip-k">Health</div>
+                    <div className="pip-v">{health.toFixed(1)}</div>
+
+                    <div className="pip-k">Hunger</div>
+                    <div className="pip-v">{hunger.toFixed(1)}</div>
+
+                    <div className="pip-k">Growth</div>
+                    <div className="pip-v">{growth.toFixed(1)}</div>
+
+                    <div className="pip-k">Updated</div>
+                    <div className="pip-v">{String(updated)}</div>
+                  </div>
                 </div>
               </div>
             </>
           )}
 
-          {tab === "DATA" && (
+          {tab === "data" && (
             <div className="pip-panel">
-              <div className="pip-heading">RAW /DATA SNAPSHOT</div>
-              <pre className="pip-code wrap">
-                {JSON.stringify(
-                  {
-                    state,
-                    heartbeat: hb,
-                    pet,
-                    stats: data?.stats,
-                    control: ctrl,
-                  },
-                  null,
-                  2
-                )}
-              </pre>
+              <div className="pip-heading">RAW DATA</div>
+              <pre className="pip-pre">{JSON.stringify({ heartbeat, companion }, null, 2)}</pre>
             </div>
           )}
 
-          {tab === "LOG" && (
+          {tab === "log" && (
             <div className="pip-panel">
               <div className="pip-heading">EVENT LOG</div>
-              {events.length === 0 && deaths.length === 0 ? (
-                <div className="pip-muted">No events yet.</div>
+              {events?.length ? (
+                <div className="pip-log">
+                  {events.slice().reverse().slice(0, 30).map((e, i) => (
+                    <div key={i} className="pip-logrow">
+                      <div className="pip-k">{e?.time_utc || e?.t || "—"}</div>
+                      <div className="pip-v">{e?.msg || e?.message || JSON.stringify(e)}</div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <>
-                  {events.slice(-80).reverse().map((e, i) => (
-                    <div key={`e-${i}`} className="pip-row" style={{ justifyContent: "space-between", gap: 10 }}>
-                      <div className="pip-k wrap">{e?.time_utc || "—"}</div>
-                      <div className="pip-v wrap" style={{ textAlign: "right" }}>
-                        [{e?.type || "info"}] {e?.message || ""}
-                      </div>
-                    </div>
-                  ))}
-                  {deaths.slice(-40).reverse().map((d, i) => (
-                    <div key={`d-${i}`} className="pip-row" style={{ justifyContent: "space-between", gap: 10 }}>
-                      <div className="pip-k wrap">{d?.time_utc || "—"}</div>
-                      <div className="pip-v wrap" style={{ textAlign: "right" }}>
-                        [death] {d?.reason || ""}
-                      </div>
-                    </div>
-                  ))}
-                </>
+                <div className="pip-muted">No log events returned yet.</div>
               )}
             </div>
           )}
