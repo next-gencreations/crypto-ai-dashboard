@@ -21,9 +21,10 @@ function safeMarketsList(m) {
   }
 }
 
-function fmtNum(n, fallback = 0) {
-  const x = Number(n);
-  return Number.isFinite(x) ? x : fallback;
+async function fetchJson(url, signal) {
+  const res = await fetch(url, { cache: "no-store", signal });
+  if (!res.ok) throw new Error(`API responded ${res.status}`);
+  return res.json();
 }
 
 export default function HomePage() {
@@ -32,34 +33,26 @@ export default function HomePage() {
   const [tab, setTab] = useState("status"); // status | data | log
   const [err, setErr] = useState("");
   const [lastFetchAt, setLastFetchAt] = useState(null);
-  const [heartbeat, setHeartbeat] = useState(null);
   const [botState, setBotState] = useState("—");
 
   const [equity, setEquity] = useState(0);
   const [markets, setMarkets] = useState([]);
   const [openPositions, setOpenPositions] = useState(0);
   const [survival, setSurvival] = useState("—");
+  const [heartbeat, setHeartbeat] = useState("—");
 
   const [companion, setCompanion] = useState({
     name: "VAULT GIRL",
     stage: "egg",
     mood: "cryo",
-    wood: 0.8,
     health: 100.0,
     hunger: 100.0,
     growth: 0.0,
     updated: "—",
-    vaultNumber: "13",
   });
 
   const [rawData, setRawData] = useState(null);
   const [logLines, setLogLines] = useState([]);
-
-  async function fetchJson(url, signal) {
-    const res = await fetch(url, { cache: "no-store", signal });
-    if (!res.ok) throw new Error(`API responded ${res.status}`);
-    return res.json();
-  }
 
   async function fetchAll(signal) {
     if (!apiBase) {
@@ -73,14 +66,27 @@ export default function HomePage() {
       const data = await fetchJson(`${apiBase}/data`, signal);
       setRawData(data);
 
-      const hb = data?.last_heartbeat || data?.heartbeat || data?.hb || data?.timestamp || null;
-      setHeartbeat(hb);
+      // Heartbeat / State
+      const hb =
+        data?.last_heartbeat ??
+        data?.heartbeat ??
+        data?.hb ??
+        data?.timestamp ??
+        "—";
+      setHeartbeat(typeof hb === "string" ? hb : hb?.time_utc || "—");
 
       const botStatus = data?.bot_status || data?.status || data?.state || "ACTIVE";
       setBotState(String(botStatus).toUpperCase());
 
-      const eq = fmtNum(data?.total_pnl_usd ?? data?.equity ?? data?.pnl ?? data?.total_pnl ?? 0, 0);
-      setEquity(eq);
+      // Equity (try a few common keys)
+      const eq = Number(
+        data?.total_pnl_usd ??
+          data?.equity ??
+          data?.pnl ??
+          data?.total_pnl ??
+          0
+      );
+      setEquity(Number.isFinite(eq) ? eq : 0);
 
       // Markets
       let mks = [];
@@ -89,17 +95,23 @@ export default function HomePage() {
       else if (data?.config?.markets) mks = safeMarketsList(data.config.markets);
       else if (data?.market_list) mks = safeMarketsList(data.market_list);
       else if (typeof data?.market === "string") {
-        mks = data.market.split(",").map((x) => x.trim()).filter(Boolean);
+        mks = data.market
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean);
       }
       setMarkets(mks);
 
-      const ops = fmtNum(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0, 0);
-      setOpenPositions(ops);
+      // Open positions
+      const ops = Number(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0);
+      setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
-      const surv = data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL";
-      setSurvival(String(surv).toUpperCase());
+      // Survival
+      setSurvival(
+        String(data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL").toUpperCase()
+      );
 
-      // Companion data (support multiple keys)
+      // Companion (accept lots of possible shapes)
       const pet =
         data?.vault_girl ||
         data?.vault_boy ||
@@ -107,33 +119,27 @@ export default function HomePage() {
         data?.companion ||
         {};
 
-      const name = String(pet?.name || pet?.label || "VAULT GIRL").toUpperCase();
-      const stage = String(
-        pet?.stage ||
-          (pet?.hatched === true ? "hatched" : pet?.egg === true ? "egg" : "egg")
-      ).toLowerCase();
-
-      const mood = String(pet?.mood || pet?.state || "cryo").toLowerCase();
+      const name = String(pet?.name || "VAULT GIRL");
+      const stage = String(pet?.stage || (pet?.hatched === true ? "hatched" : "egg"));
+      const mood = String(pet?.mood || pet?.state || "neutral");
 
       setCompanion({
         name,
         stage,
         mood,
-        wood: fmtNum(pet?.wood ?? 0.8, 0.8),
-        health: fmtNum(pet?.health ?? 100.0, 100.0),
-        hunger: fmtNum(pet?.hunger ?? 100.0, 100.0),
-        growth: fmtNum(pet?.growth ?? 0.0, 0.0),
+        health: Number(pet?.health ?? 100.0) || 0,
+        hunger: Number(pet?.hunger ?? 100.0) || 0,
+        growth: Number(pet?.growth ?? 0.0) || 0,
         updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
-        vaultNumber: String(pet?.vaultNumber || pet?.vault_number || "13"),
       });
 
-      // Logs (optional)
+      // Logs (optional endpoint)
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
-        // ignore missing logs endpoint
+        setLogLines([]);
       }
 
       setLastFetchAt(new Date());
@@ -178,14 +184,14 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Main Navigation */}
+        {/* Main Nav */}
         <div className="pip-links">
           <Link className="pip-link active" href="/">HOME</Link>
           <Link className="pip-link" href="/candles">CANDLES</Link>
           <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
-        {/* Sub Navigation */}
+        {/* Sub Nav */}
         <div className="pip-links">
           <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
             STATUS
@@ -198,7 +204,7 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Error Display */}
+        {/* Error */}
         {err && (
           <div className="pip-content">
             <div className="pip-panel">
@@ -208,10 +214,11 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Content */}
         <div className="pip-content">
           {tab === "status" && (
             <>
-              {/* SYSTEM STATUS */}
+              {/* System Status */}
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
@@ -237,74 +244,31 @@ export default function HomePage() {
                   <div>
                     <div className="pip-row">
                       <div className="pip-k">LAST HEARTBEAT</div>
-                      <div className="pip-v">
-                        {typeof heartbeat === "string"
-                          ? heartbeat
-                          : heartbeat?.time_utc || heartbeat?.time || heartbeat?.timestamp || "—"}
-                      </div>
+                      <div className="pip-v">{heartbeat || "—"}</div>
                     </div>
                     <div className="pip-row">
                       <div className="pip-k">EQUITY</div>
-                      <div className="pip-v">${fmtNum(equity).toFixed(2)}</div>
+                      <div className="pip-v">${Number(equity).toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* VAULT COMPANION */}
+              {/* Vault Companion */}
               <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
                 <div className="pip-companion">
-                  {/* LEFT: character box */}
-                  <div
-                    style={{
-                      width: "340px",
-                      maxWidth: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div
-                      className="pip-petbox"
-                      style={{
-                        width: "320px",
-                        height: "360px",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {/* SINGLE overlay label (this is the only text) */}
-                      <div
-                        className="pip-petlabel"
-                        style={{
-                          position: "absolute",
-                          left: "18px",
-                          top: "14px",
-                          zIndex: 3,
-                        }}
-                      >
-                        {companion.name || "VAULT GIRL"}
-                      </div>
-
-                      {/* SVG character (NO text inside) */}
-                      <VaultGirlSVG
-                        mood={companion.mood}
-                        stage={companion.stage}
-                        vaultNumber={companion.vaultNumber}
-                      />
+                  {/* LEFT: SVG + single label (no duplicates) */}
+                  <div style={{ width: "340px", maxWidth: "100%" }}>
+                    <div className="pip-petbox" style={{ width: "320px", height: "360px", position: "relative", overflow: "hidden" }}>
+                      {/* IMPORTANT: SVG MUST NOT render its own "VAULT GIRL" title */}
+                      <VaultGirlSVG mood={companion.mood} stage={companion.stage} />
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        textAlign: "center",
-                        color: "var(--pip-ink-dim)",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {companion.stage} • {companion.mood}
+                    {/* Single label OUTSIDE the box (this fixes the double text issue) */}
+                    <div className="pip-petlabel" style={{ marginTop: "10px", textAlign: "center" }}>
+                      {companion.name}
                     </div>
                   </div>
 
@@ -334,33 +298,26 @@ export default function HomePage() {
 
                       <div className="pip-panel">
                         <div className="pip-row">
-                          <div className="pip-k">WOOD</div>
-                          <div className="pip-v">{fmtNum(companion.wood).toFixed(1)}</div>
-                        </div>
-                      </div>
-
-                      <div className="pip-panel">
-                        <div className="pip-row">
                           <div className="pip-k">HEALTH</div>
-                          <div className="pip-v">{fmtNum(companion.health).toFixed(1)}</div>
+                          <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
                         </div>
                       </div>
 
                       <div className="pip-panel">
                         <div className="pip-row">
                           <div className="pip-k">HUNGER</div>
-                          <div className="pip-v">{fmtNum(companion.hunger).toFixed(1)}</div>
+                          <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
                         </div>
                       </div>
 
                       <div className="pip-panel">
                         <div className="pip-row">
                           <div className="pip-k">GROWTH</div>
-                          <div className="pip-v">{fmtNum(companion.growth).toFixed(1)}</div>
+                          <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
                         </div>
                       </div>
 
-                      <div className="pip-panel">
+                      <div className="pip-panel" style={{ gridColumn: "1 / -1" }}>
                         <div className="pip-row">
                           <div className="pip-k">UPDATED</div>
                           <div className="pip-v">{companion.updated}</div>
@@ -370,14 +327,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div
-                  className="pip-muted"
-                  style={{
-                    marginTop: "12px",
-                    paddingTop: "12px",
-                    borderTop: "1px dashed rgba(119,255,154,0.1)",
-                  }}
-                >
+                <div className="pip-muted" style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px dashed rgba(119,255,154,0.1)" }}>
                   Vault companion status updates with each trade. Wins feed, losses starve.
                 </div>
               </div>
