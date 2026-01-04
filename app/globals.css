@@ -1,4 +1,4 @@
-/* ===== Full body companion stage ===== */
+html, body { background: #06110a !important; color: rgba(119,255,154,0.92) !important; }/* ===== Full body companion stage ===== */
 .pip-pet-stage{
   border: 1px solid rgba(119,255,154,0.12);
   background: rgba(0,0,0,0.22);
