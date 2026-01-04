@@ -8,21 +8,25 @@ export default function VaultGirlSVG({
 }) {
   const glow =
     mood === "happy"
-      ? "drop-shadow(0 0 10px rgba(119,255,154,.9))"
+      ? "drop-shadow(0 0 10px rgba(119,255,154,.95))"
       : mood === "cryo"
-      ? "drop-shadow(0 0 6px rgba(119,255,154,.5))"
-      : "drop-shadow(0 0 8px rgba(119,255,154,.7))";
+      ? "drop-shadow(0 0 6px rgba(119,255,154,.55))"
+      : "drop-shadow(0 0 8px rgba(119,255,154,.75))";
+
+  const ink = "#77ff9a";
+  const fill = "rgba(119,255,154,0.14)";
+
+  // expression
+  const mouth =
+    mood === "happy"
+      ? "M128 92 Q130 96 132 92"
+      : mood === "sad"
+      ? "M128 96 Q130 92 132 96"
+      : "M128 94 L132 94";
 
   return (
-    <svg
-      viewBox="0 0 260 340"
-      width="100%"
-      height="100%"
-      style={{
-        filter: glow,
-      }}
-    >
-      {/* background glow */}
+    <svg viewBox="0 0 260 340" width="100%" height="100%" style={{ filter: glow }}>
+      {/* frame */}
       <rect
         x="10"
         y="10"
@@ -34,121 +38,138 @@ export default function VaultGirlSVG({
         strokeWidth="2"
       />
 
-      {/* head */}
-      <ellipse
-        cx="130"
-        cy="80"
-        rx="30"
-        ry="36"
-        fill="rgba(119,255,154,0.18)"
-        stroke="#77ff9a"
-        strokeWidth="3"
-      />
+      {/* subtle scanlines */}
+      <g opacity="0.08">
+        {Array.from({ length: 45 }).map((_, i) => (
+          <rect key={i} x="14" y={18 + i * 7} width="232" height="2" fill="#000" />
+        ))}
+      </g>
 
-      {/* hair */}
-      <path
-        d="M95 78 Q130 38 165 78 Q155 65 130 65 Q105 65 95 78Z"
-        fill="rgba(119,255,154,0.35)"
-      />
-
-      {/* eyes */}
-      <circle cx="120" cy="82" r="3" fill="#77ff9a" />
-      <circle cx="140" cy="82" r="3" fill="#77ff9a" />
-
-      {/* mouth */}
-      {mood === "happy" ? (
+      {/* ===== Vault Girl ===== */}
+      <g stroke={ink} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        {/* hair (bob cut) */}
         <path
-          d="M118 94 Q130 102 142 94"
-          stroke="#77ff9a"
-          strokeWidth="2"
-          fill="none"
+          d="M95 70
+             Q110 42 130 44
+             Q155 46 170 70
+             Q176 82 170 96
+             Q165 110 154 120
+             Q145 130 130 132
+             Q112 130 103 120
+             Q92 110 90 96
+             Q84 82 95 70Z"
+          fill="rgba(119,255,154,0.22)"
+          opacity="0.95"
         />
-      ) : (
-        <line
-          x1="118"
-          y1="96"
-          x2="142"
-          y2="96"
-          stroke="#77ff9a"
-          strokeWidth="2"
+        {/* fringe */}
+        <path
+          d="M102 74
+             Q118 60 130 62
+             Q146 64 158 74
+             Q145 76 130 78
+             Q116 78 102 74Z"
+          fill="rgba(119,255,154,0.18)"
+          stroke="none"
         />
+
+        {/* head */}
+        <ellipse cx="130" cy="86" rx="26" ry="32" fill={fill} />
+
+        {/* eyes */}
+        <circle cx="121" cy="86" r="3.5" fill={ink} stroke="none" opacity="0.9" />
+        <circle cx="139" cy="86" r="3.5" fill={ink} stroke="none" opacity="0.9" />
+
+        {/* nose */}
+        <path d="M130 88 Q128 92 131 94" fill="none" opacity="0.7" />
+
+        {/* mouth */}
+        <path d={mouth} fill="none" opacity="0.9" />
+
+        {/* neck */}
+        <path d="M122 116 Q130 124 138 116" fill="none" opacity="0.9" />
+
+        {/* torso (more feminine silhouette) */}
+        <path
+          d="M106 126
+             Q130 112 154 126
+             Q166 134 166 154
+             Q166 176 156 198
+             Q149 214 130 214
+             Q111 214 104 198
+             Q94 176 94 154
+             Q94 134 106 126Z"
+          fill={fill}
+        />
+
+        {/* zipper */}
+        <path d="M130 126 L130 214" opacity="0.35" />
+
+        {/* belt line */}
+        <path d="M108 188 Q130 198 152 188" opacity="0.35" />
+
+        {/* vault number */}
+        <text
+          x="130"
+          y="172"
+          textAnchor="middle"
+          fontSize="18"
+          fill={ink}
+          opacity="0.85"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+          stroke="none"
+        >
+          {vaultNumber}
+        </text>
+
+        {/* arms (simple relaxed) */}
+        <path d="M96 154 Q76 170 86 196" strokeWidth="7" fill="none" />
+        <path d="M164 154 Q184 170 174 196" strokeWidth="7" fill="none" />
+
+        {/* hands */}
+        <circle cx="86" cy="198" r="6" fill={fill} />
+        <circle cx="174" cy="198" r="6" fill={fill} />
+
+        {/* legs (walking pose like reference) */}
+        {/* back leg */}
+        <path d="M122 214 Q112 246 120 286" strokeWidth="7" fill="none" />
+        {/* front leg stepping forward */}
+        <path d="M138 214 Q154 252 144 292" strokeWidth="7" fill="none" />
+
+        {/* shoes */}
+        <path d="M114 290 Q122 302 136 294" strokeWidth="6" fill="none" />
+        <path d="M136 296 Q150 306 160 296" strokeWidth="6" fill="none" />
+      </g>
+
+      {/* egg overlay (if stage egg) */}
+      {stage === "egg" && (
+        <g>
+          <ellipse
+            cx="130"
+            cy="190"
+            rx="62"
+            ry="86"
+            fill="rgba(119,255,154,0.07)"
+            stroke="rgba(119,255,154,0.28)"
+            strokeWidth="2"
+          />
+          <path
+            d="M94 198 Q130 178 166 198"
+            stroke="rgba(119,255,154,0.22)"
+            strokeWidth="2"
+            fill="none"
+          />
+        </g>
       )}
 
-      {/* body */}
-      <path
-        d="M95 120 Q130 105 165 120 V200 Q165 220 145 230 H115 Q95 220 95 200Z"
-        fill="rgba(119,255,154,0.15)"
-        stroke="#77ff9a"
-        strokeWidth="3"
-      />
-
-      {/* zipper */}
-      <line
-        x1="130"
-        y1="120"
-        x2="130"
-        y2="220"
-        stroke="#77ff9a"
-        strokeWidth="2"
-        opacity="0.4"
-      />
-
-      {/* vault number */}
-      <text
-        x="130"
-        y="170"
-        textAnchor="middle"
-        fontSize="20"
-        fill="#77ff9a"
-        opacity="0.85"
-        fontFamily="monospace"
-      >
-        {vaultNumber}
-      </text>
-
-      {/* arms */}
-      <path
-        d="M95 140 Q70 155 78 180"
-        stroke="#77ff9a"
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <path
-        d="M165 140 Q190 155 182 180"
-        stroke="#77ff9a"
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-      />
-
-      {/* legs */}
-      <path
-        d="M120 230 Q110 265 120 300"
-        stroke="#77ff9a"
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <path
-        d="M140 230 Q150 265 140 300"
-        stroke="#77ff9a"
-        strokeWidth="6"
-        fill="none"
-        strokeLinecap="round"
-      />
-
-      {/* egg overlay */}
-      {stage === "egg" && (
-        <ellipse
-          cx="130"
-          cy="170"
-          rx="55"
-          ry="75"
-          fill="rgba(119,255,154,0.08)"
-          stroke="rgba(119,255,154,0.35)"
-          strokeWidth="2"
-        />
+      {/* cryo frost (subtle) */}
+      {mood === "cryo" && (
+        <g opacity="0.12">
+          <circle cx="72" cy="72" r="2" fill="#d8ffe3" />
+          <circle cx="190" cy="92" r="2" fill="#d8ffe3" />
+          <circle cx="206" cy="170" r="2" fill="#d8ffe3" />
+          <circle cx="60" cy="210" r="2" fill="#d8ffe3" />
+          <circle cx="176" cy="248" r="2" fill="#d8ffe3" />
+        </g>
       )}
     </svg>
   );
