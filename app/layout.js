@@ -17,9 +17,7 @@ export default function RootLayout({ children }) {
             "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
         }}
       >
-        <div className="pip-crt">
-          <div className="pip-shell">{children}</div>
-        </div>
+        {children}
       </body>
     </html>
   );
