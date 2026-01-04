@@ -8,7 +8,15 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>
+      <body
+        style={{
+          margin: 0,
+          background: "#001b0d",
+          color: "#77ff9a",
+          fontFamily:
+            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+        }}
+      >
         <div className="pip-crt">
           <div className="pip-shell">{children}</div>
         </div>
