@@ -21,8 +21,13 @@ function safeMarketsList(m) {
   }
 }
 
+function fmtNum(n, fallback = 0) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : fallback;
+}
+
 export default function HomePage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+  const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
 
   const [tab, setTab] = useState("status"); // status | data | log
   const [err, setErr] = useState("");
@@ -39,10 +44,12 @@ export default function HomePage() {
     name: "VAULT GIRL",
     stage: "egg",
     mood: "cryo",
+    wood: 0.8,
     health: 100.0,
     hunger: 100.0,
     growth: 0.0,
     updated: "—",
+    vaultNumber: "13",
   });
 
   const [rawData, setRawData] = useState(null);
@@ -66,53 +73,33 @@ export default function HomePage() {
       const data = await fetchJson(`${apiBase}/data`, signal);
       setRawData(data);
 
-      // heartbeat (accept a bunch of possible keys)
-      const hb =
-        data?.last_heartbeat ||
-        data?.heartbeat ||
-        data?.hb ||
-        data?.timestamp ||
-        null;
+      const hb = data?.last_heartbeat || data?.heartbeat || data?.hb || data?.timestamp || null;
       setHeartbeat(hb);
 
-      // state
-      const bs = data?.bot_status || data?.status || data?.state || "ACTIVE";
-      setBotState(String(bs).toUpperCase());
+      const botStatus = data?.bot_status || data?.status || data?.state || "ACTIVE";
+      setBotState(String(botStatus).toUpperCase());
 
-      // equity
-      const eq =
-        Number(
-          data?.total_pnl_usd ??
-            data?.equity ??
-            data?.pnl ??
-            data?.total_pnl ??
-            0
-        ) || 0;
+      const eq = fmtNum(data?.total_pnl_usd ?? data?.equity ?? data?.pnl ?? data?.total_pnl ?? 0, 0);
       setEquity(eq);
 
-      // markets
+      // Markets
       let mks = [];
       if (data?.markets) mks = safeMarketsList(data.markets);
       else if (data?.trading_pairs) mks = safeMarketsList(data.trading_pairs);
       else if (data?.config?.markets) mks = safeMarketsList(data.config.markets);
       else if (data?.market_list) mks = safeMarketsList(data.market_list);
       else if (typeof data?.market === "string") {
-        mks = data.market
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
+        mks = data.market.split(",").map((x) => x.trim()).filter(Boolean);
       }
       setMarkets(mks);
 
-      const ops =
-        Number(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0) || 0;
+      const ops = fmtNum(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0, 0);
       setOpenPositions(ops);
 
-      setSurvival(
-        String(data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL")
-      );
+      const surv = data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL";
+      setSurvival(String(surv).toUpperCase());
 
-      // companion (try common locations)
+      // Companion data (support multiple keys)
       const pet =
         data?.vault_girl ||
         data?.vault_boy ||
@@ -120,23 +107,33 @@ export default function HomePage() {
         data?.companion ||
         {};
 
+      const name = String(pet?.name || pet?.label || "VAULT GIRL").toUpperCase();
+      const stage = String(
+        pet?.stage ||
+          (pet?.hatched === true ? "hatched" : pet?.egg === true ? "egg" : "egg")
+      ).toLowerCase();
+
+      const mood = String(pet?.mood || pet?.state || "cryo").toLowerCase();
+
       setCompanion({
-        name: String(pet?.name || "VAULT GIRL"),
-        stage: String(pet?.stage || (pet?.hatched === true ? "hatched" : "egg")),
-        mood: String(pet?.mood || pet?.state || "cryo"),
-        health: Number(pet?.health ?? 100.0) || 0,
-        hunger: Number(pet?.hunger ?? 100.0) || 0,
-        growth: Number(pet?.growth ?? 0.0) || 0,
+        name,
+        stage,
+        mood,
+        wood: fmtNum(pet?.wood ?? 0.8, 0.8),
+        health: fmtNum(pet?.health ?? 100.0, 100.0),
+        hunger: fmtNum(pet?.hunger ?? 100.0, 100.0),
+        growth: fmtNum(pet?.growth ?? 0.0, 0.0),
         updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
+        vaultNumber: String(pet?.vaultNumber || pet?.vault_number || "13"),
       });
 
-      // logs (optional)
+      // Logs (optional)
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
-        // ok if /logs doesn't exist
+        // ignore missing logs endpoint
       }
 
       setLastFetchAt(new Date());
@@ -167,21 +164,6 @@ export default function HomePage() {
     return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
 
-  const hbText = (() => {
-    if (!heartbeat) return "—";
-    if (typeof heartbeat === "string") return heartbeat;
-    if (typeof heartbeat === "number") return String(heartbeat);
-    if (typeof heartbeat === "object") {
-      return (
-        heartbeat?.time_utc ||
-        heartbeat?.time ||
-        heartbeat?.timestamp ||
-        JSON.stringify(heartbeat)
-      );
-    }
-    return String(heartbeat);
-  })();
-
   return (
     <div className="pip-crt">
       <div className="pip-shell">
@@ -205,25 +187,13 @@ export default function HomePage() {
 
         {/* Sub Navigation */}
         <div className="pip-links">
-          <button
-            className={`pip-link ${tab === "status" ? "active" : ""}`}
-            onClick={() => setTab("status")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
             STATUS
           </button>
-          <button
-            className={`pip-link ${tab === "data" ? "active" : ""}`}
-            onClick={() => setTab("data")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
             DATA
           </button>
-          <button
-            className={`pip-link ${tab === "log" ? "active" : ""}`}
-            onClick={() => setTab("log")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
             LOG
           </button>
         </div>
@@ -241,17 +211,11 @@ export default function HomePage() {
         <div className="pip-content">
           {tab === "status" && (
             <>
-              {/* System Status */}
+              {/* SYSTEM STATUS */}
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
-                <div
-                  className="pip-row"
-                  style={{
-                    padding: "12px 0",
-                    borderBottom: "1px solid rgba(119,255,154,0.2)",
-                  }}
-                >
+                <div className="pip-row" style={{ padding: "12px 0", borderBottom: "1px solid rgba(119,255,154,0.2)" }}>
                   <div className="pip-k">MARKETS</div>
                   <div className="pip-v" style={{ fontSize: "16px" }}>
                     {markets.length ? markets.join(", ") : "BTC-USD, ETH-USD"}
@@ -273,22 +237,26 @@ export default function HomePage() {
                   <div>
                     <div className="pip-row">
                       <div className="pip-k">LAST HEARTBEAT</div>
-                      <div className="pip-v">{hbText}</div>
+                      <div className="pip-v">
+                        {typeof heartbeat === "string"
+                          ? heartbeat
+                          : heartbeat?.time_utc || heartbeat?.time || heartbeat?.timestamp || "—"}
+                      </div>
                     </div>
                     <div className="pip-row">
                       <div className="pip-k">EQUITY</div>
-                      <div className="pip-v">${Number(equity).toFixed(2)}</div>
+                      <div className="pip-v">${fmtNum(equity).toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Vault Companion */}
+              {/* VAULT COMPANION */}
               <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
                 <div className="pip-companion">
-                  {/* Left: SVG Character Box */}
+                  {/* LEFT: character box */}
                   <div
                     style={{
                       width: "340px",
@@ -307,28 +275,24 @@ export default function HomePage() {
                         overflow: "hidden",
                       }}
                     >
-                      {/* IMPORTANT: only ONE label now (no double text) */}
+                      {/* SINGLE overlay label (this is the only text) */}
                       <div
                         className="pip-petlabel"
                         style={{
                           position: "absolute",
                           left: "18px",
-                          top: "16px",
-                          fontSize: "14px",
-                          fontWeight: "bold",
-                          color: "var(--pip-ink)",
-                          textShadow: "0 0 8px rgba(119,255,154,0.45)",
+                          top: "14px",
                           zIndex: 3,
-                          pointerEvents: "none",
                         }}
                       >
                         {companion.name || "VAULT GIRL"}
                       </div>
 
+                      {/* SVG character (NO text inside) */}
                       <VaultGirlSVG
                         mood={companion.mood}
                         stage={companion.stage}
-                        vaultNumber="13"
+                        vaultNumber={companion.vaultNumber}
                       />
                     </div>
 
@@ -344,7 +308,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {/* Right: stats */}
+                  {/* RIGHT: stats */}
                   <div style={{ flex: 1 }}>
                     <div className="pip-grid">
                       <div className="pip-panel">
@@ -370,22 +334,29 @@ export default function HomePage() {
 
                       <div className="pip-panel">
                         <div className="pip-row">
+                          <div className="pip-k">WOOD</div>
+                          <div className="pip-v">{fmtNum(companion.wood).toFixed(1)}</div>
+                        </div>
+                      </div>
+
+                      <div className="pip-panel">
+                        <div className="pip-row">
                           <div className="pip-k">HEALTH</div>
-                          <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
+                          <div className="pip-v">{fmtNum(companion.health).toFixed(1)}</div>
                         </div>
                       </div>
 
                       <div className="pip-panel">
                         <div className="pip-row">
                           <div className="pip-k">HUNGER</div>
-                          <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
+                          <div className="pip-v">{fmtNum(companion.hunger).toFixed(1)}</div>
                         </div>
                       </div>
 
                       <div className="pip-panel">
                         <div className="pip-row">
                           <div className="pip-k">GROWTH</div>
-                          <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
+                          <div className="pip-v">{fmtNum(companion.growth).toFixed(1)}</div>
                         </div>
                       </div>
 
@@ -426,9 +397,7 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">
-                  No logs available. Check DATA tab for system output.
-                </div>
+                <div className="pip-muted">No logs available. Check DATA tab for system output.</div>
               )}
             </div>
           )}
