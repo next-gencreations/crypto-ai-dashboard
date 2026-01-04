@@ -298,3 +298,34 @@ html, body {
   25% { transform: translateX(-1.5px); }
   75% { transform: translateX(1.5px); }
 }
+/* Vault Companion layout: mobile stacks, desktop splits */
+.pip-companion {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap; /* key for mobile */
+}
+
+/* Left side box */
+.pip-companion > div:first-child {
+  width: 100%;
+  max-width: 360px;
+}
+
+/* Right side stats */
+.pip-companion > div:last-child {
+  width: 100%;
+}
+
+/* Desktop/tablet: two columns */
+@media (min-width: 900px) {
+  .pip-companion {
+    flex-wrap: nowrap;
+  }
+  .pip-companion > div:first-child {
+    width: 360px;
+  }
+  .pip-companion > div:last-child {
+    width: calc(100% - 360px);
+  }
+}
