@@ -278,3 +278,23 @@ html, body {
 .pip-walk .pip-arm-right { transform-origin: 168px 140px; animation: armSwingR 1.1s ease-in-out infinite; }
 .pip-walk .pip-leg-left { transform-origin: 125px 182px; animation: legSwingL 1.1s ease-in-out infinite; }
 .pip-walk .pip-leg-right { transform-origin: 135px 182px; animation: legSwingR 1.1s ease-in-out infinite; }
+/* Mascot animations */
+.pip-petbox { position: relative; }
+
+.pip-bob .pip-mascot { transform-origin: 130px 160px; animation: pipBob 1.6s ease-in-out infinite; }
+.pip-walk .pip-mascot { transform-origin: 130px 160px; animation: pipWalk 1.05s ease-in-out infinite; }
+.pip-shake .pip-mascot { transform-origin: 130px 160px; animation: pipShake 0.12s linear infinite; }
+
+@keyframes pipBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+
+/* Walk = slight bounce + tiny sway */
+@keyframes pipWalk {
+  0%,100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(2px) translateX(1px); }
+}
+
+@keyframes pipShake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
