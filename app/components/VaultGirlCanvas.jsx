@@ -26,7 +26,7 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
     // Read pip colors ONCE
     const rootStyle = getComputedStyle(document.documentElement);
     const ink = rootStyle.getPropertyValue("--pip-ink")?.trim() || "#77ff9a";
-    const border = rootStyle.getPropertyValue("--pip-border")?.trim() || "rgba(119,255,154,0.2)";
+    const border = rootStyle.getPropertyValue("--pip-border")?.trim() || "rgba(119,255,154,0.25)";
     const bg = "rgba(0,0,0,0.25)";
     const fill = "rgba(119,255,154,0.10)";
 
@@ -36,15 +36,33 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       frame++;
       ctx.clearRect(0, 0, cssW, cssH);
 
-      // frame
+      // OUTER FRAME (keeps the edge look)
       roundRect(ctx, 10, 10, cssW - 20, cssH - 20, 18, bg, border, 2);
 
-      // scanlines
+      // CLIP to inside the frame so we don't wash out the edges
+      ctx.save();
+      roundedClip(ctx, 14, 14, cssW - 28, cssH - 28, 16);
+
+      // Dark inner vignette / glass feel
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(14, 14, cssW - 28, cssH - 28);
+      ctx.globalAlpha = 1;
+
+      // Scanlines (ONLY inside clip)
       ctx.globalAlpha = 0.06;
       ctx.fillStyle = "#000";
-      for (let y = 18; y < cssH - 18; y += 6) {
+      for (let y = 14; y < cssH - 14; y += 6) {
         ctx.fillRect(14, y, cssW - 28, 2);
       }
+      ctx.globalAlpha = 1;
+
+      // Subtle glow haze (inside)
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.ellipse(cssW / 2, cssH / 2, 140, 180, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
 
       // animation controls
@@ -52,13 +70,15 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       const isHappy = mood === "happy";
       const isPanic = mood === "panic";
 
-      const bob = isCryo ? Math.sin(frame * 0.04) * 1.5
-               : isPanic ? Math.sin(frame * 0.5) * 2.5
-               : isHappy ? Math.sin(frame * 0.10) * 3.5
-               : Math.sin(frame * 0.06) * 2;
+      const bob = isCryo
+        ? Math.sin(frame * 0.04) * 1.5
+        : isPanic
+        ? Math.sin(frame * 0.5) * 2.5
+        : isHappy
+        ? Math.sin(frame * 0.1) * 3.2
+        : Math.sin(frame * 0.06) * 2;
 
-      const sway = isPanic ? Math.sin(frame * 0.7) * 2.5
-                : Math.sin(frame * 0.04) * 1.2;
+      const sway = isPanic ? Math.sin(frame * 0.7) * 2.2 : Math.sin(frame * 0.04) * 1.1;
 
       // walk cycle
       const walk = Math.sin(frame * 0.10);
@@ -67,7 +87,6 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       const armA = -walk * 10;
       const armB = walk * 10;
 
-      // center
       const cx = cssW / 2;
       const cy = cssH / 2 + 30;
 
@@ -80,10 +99,9 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      // --- HAIR (outline, closer to reference look) ---
+      // Hair outline (bob cut vibe)
       ctx.globalAlpha = 0.9;
       ctx.beginPath();
-      // bob haircut-ish outline
       ctx.moveTo(cx - 38, cy - 125);
       ctx.quadraticCurveTo(cx, cy - 160, cx + 38, cy - 125);
       ctx.quadraticCurveTo(cx + 48, cy - 95, cx + 26, cy - 75);
@@ -92,7 +110,7 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.quadraticCurveTo(cx - 48, cy - 95, cx - 38, cy - 125);
       ctx.stroke();
 
-      // small side ponytail if hatched
+      // ponytail only if hatched
       if (String(stage).toLowerCase() === "hatched") {
         ctx.beginPath();
         ctx.moveTo(cx + 26, cy - 98);
@@ -100,9 +118,9 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
         ctx.quadraticCurveTo(cx + 62, cy - 22, cx + 42, cy - 20);
         ctx.stroke();
       }
-
-      // --- HEAD ---
       ctx.globalAlpha = 1;
+
+      // Head
       ctx.fillStyle = fill;
       ctx.beginPath();
       ctx.ellipse(cx, cy - 100, 24, 30, 0, 0, Math.PI * 2);
@@ -116,7 +134,7 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.arc(cx + 8, cy - 104, 2.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // mouth (mood)
+      // mouth
       ctx.beginPath();
       if (isCryo) {
         ctx.moveTo(cx - 10, cy - 86);
@@ -133,10 +151,9 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       }
       ctx.stroke();
 
-      // --- BODY (slightly side pose) ---
+      // Body
       ctx.fillStyle = fill;
       ctx.beginPath();
-      // torso outline (slight lean)
       ctx.moveTo(cx - 26, cy - 60);
       ctx.quadraticCurveTo(cx - 36, cy - 20, cx - 22, cy + 10);
       ctx.lineTo(cx - 18, cy + 70);
@@ -155,7 +172,7 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      // vault number
+      // number
       ctx.fillStyle = ink;
       ctx.globalAlpha = 0.85;
       ctx.font = "bold 18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -163,27 +180,23 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.fillText("13", cx + 2, cy + 8);
       ctx.globalAlpha = 1;
 
-      // --- ARMS (swing) ---
-      // left arm
+      // Arms
       ctx.beginPath();
       ctx.moveTo(cx - 26, cy - 30);
       ctx.quadraticCurveTo(cx - 54, cy - 8 + armA, cx - 46, cy + 30 + armA);
       ctx.stroke();
 
-      // right arm
       ctx.beginPath();
       ctx.moveTo(cx + 26, cy - 30);
       ctx.quadraticCurveTo(cx + 54, cy - 8 + armB, cx + 46, cy + 30 + armB);
       ctx.stroke();
 
-      // --- LEGS (walk swing) ---
-      // left leg forward
+      // Legs
       ctx.beginPath();
       ctx.moveTo(cx - 8, cy + 70);
       ctx.quadraticCurveTo(cx - 28, cy + 110, cx - 14, cy + 140 + legA * 0.2);
       ctx.stroke();
 
-      // right leg back
       ctx.beginPath();
       ctx.moveTo(cx + 8, cy + 70);
       ctx.quadraticCurveTo(cx + 22, cy + 112, cx + 12, cy + 140 + legB * 0.2);
@@ -198,19 +211,33 @@ export default function VaultGirlCanvas({ mood = "neutral", stage = "egg" }) {
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      ctx.restore();
+      ctx.restore(); // character
+      ctx.restore(); // clip
+
+      // INNER INSET BORDER (restores the “edge script” look)
+      roundRect(ctx, 14, 14, cssW - 28, cssH - 28, 16, null, "rgba(119,255,154,0.18)", 1.5);
 
       raf.current = requestAnimationFrame(draw);
     }
 
     draw();
 
-    return () => {
-      cancelAnimationFrame(raf.current);
-    };
+    return () => cancelAnimationFrame(raf.current);
   }, [mood, stage]);
 
   return <canvas ref={ref} style={{ display: "block" }} />;
+}
+
+function roundedClip(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+  ctx.clip();
 }
 
 function roundRect(ctx, x, y, w, h, r, fill, stroke, strokeW = 2) {
