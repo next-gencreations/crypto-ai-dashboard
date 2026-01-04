@@ -75,10 +75,11 @@ export default function HomePage() {
         "—";
       setHeartbeat(typeof hb === "string" ? hb : hb?.time_utc || "—");
 
-      const botStatus = data?.bot_status || data?.status || data?.state || "ACTIVE";
+      const botStatus =
+        data?.bot_status || data?.status || data?.state || "ACTIVE";
       setBotState(String(botStatus).toUpperCase());
 
-      // Equity (try a few common keys)
+      // Equity
       const eq = Number(
         data?.total_pnl_usd ??
           data?.equity ??
@@ -103,15 +104,19 @@ export default function HomePage() {
       setMarkets(mks);
 
       // Open positions
-      const ops = Number(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0);
+      const ops = Number(
+        data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0
+      );
       setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
       // Survival
       setSurvival(
-        String(data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL").toUpperCase()
+        String(
+          data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL"
+        ).toUpperCase()
       );
 
-      // Companion (accept lots of possible shapes)
+      // Companion
       const pet =
         data?.vault_girl ||
         data?.vault_boy ||
@@ -133,7 +138,7 @@ export default function HomePage() {
         updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
       });
 
-      // Logs (optional endpoint)
+      // Logs
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
@@ -167,7 +172,8 @@ export default function HomePage() {
 
   const subtitle = useMemo(() => {
     const last = lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—";
-    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
+    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000
+      }s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
 
   return (
@@ -193,13 +199,25 @@ export default function HomePage() {
 
         {/* Sub Nav */}
         <div className="pip-links">
-          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
+          <button
+            className={`pip-link ${tab === "status" ? "active" : ""}`}
+            onClick={() => setTab("status")}
+            type="button"
+          >
             STATUS
           </button>
-          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
+          <button
+            className={`pip-link ${tab === "data" ? "active" : ""}`}
+            onClick={() => setTab("data")}
+            type="button"
+          >
             DATA
           </button>
-          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
+          <button
+            className={`pip-link ${tab === "log" ? "active" : ""}`}
+            onClick={() => setTab("log")}
+            type="button"
+          >
             LOG
           </button>
         </div>
@@ -222,7 +240,13 @@ export default function HomePage() {
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
-                <div className="pip-row" style={{ padding: "12px 0", borderBottom: "1px solid rgba(119,255,154,0.2)" }}>
+                <div
+                  className="pip-row"
+                  style={{
+                    padding: "12px 0",
+                    borderBottom: "1px solid rgba(119,255,154,0.2)",
+                  }}
+                >
                   <div className="pip-k">MARKETS</div>
                   <div className="pip-v" style={{ fontSize: "16px" }}>
                     {markets.length ? markets.join(", ") : "BTC-USD, ETH-USD"}
@@ -259,16 +283,41 @@ export default function HomePage() {
                 <div className="pip-heading">VAULT COMPANION</div>
 
                 <div className="pip-companion">
-                  {/* LEFT: SVG + single label (no duplicates) */}
+                  {/* LEFT: SVG + ALL INFO UNDER IT */}
                   <div style={{ width: "340px", maxWidth: "100%" }}>
-                    <div className="pip-petbox" style={{ width: "320px", height: "360px", position: "relative", overflow: "hidden" }}>
-                      {/* IMPORTANT: SVG MUST NOT render its own "VAULT GIRL" title */}
-                      <VaultGirlSVG mood={companion.mood} stage={companion.stage} />
+                    <div
+                      className="pip-petbox"
+                      style={{
+                        width: "320px",
+                        height: "360px",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* SVG draws NO text. Only the figure. */}
+                      <VaultGirlSVG
+                        mood={companion.mood}
+                        stage={companion.stage}
+                        vaultNumber="13"
+                      />
                     </div>
 
-                    {/* Single label OUTSIDE the box (this fixes the double text issue) */}
-                    <div className="pip-petlabel" style={{ marginTop: "10px", textAlign: "center" }}>
-                      {companion.name}
+                    {/* ✅ Put the info UNDER the box so it never overlaps */}
+                    <div
+                      className="pip-muted"
+                      style={{
+                        marginTop: "10px",
+                        textAlign: "center",
+                        letterSpacing: "0.08em",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: "var(--pip-ink)" }}>
+                        {companion.name}
+                      </div>
+                      <div>
+                        stage: {String(companion.stage)} • mood: {String(companion.mood)}
+                      </div>
                     </div>
                   </div>
 
@@ -327,7 +376,14 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="pip-muted" style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px dashed rgba(119,255,154,0.1)" }}>
+                <div
+                  className="pip-muted"
+                  style={{
+                    marginTop: "12px",
+                    paddingTop: "12px",
+                    borderTop: "1px dashed rgba(119,255,154,0.1)",
+                  }}
+                >
                   Vault companion status updates with each trade. Wins feed, losses starve.
                 </div>
               </div>
@@ -347,7 +403,9 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">No logs available. Check DATA tab for system output.</div>
+                <div className="pip-muted">
+                  No logs available. Check DATA tab for system output.
+                </div>
               )}
             </div>
           )}
