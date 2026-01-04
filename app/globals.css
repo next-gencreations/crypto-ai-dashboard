@@ -1,14 +1,209 @@
-import "./globals.css";
+:root{
+  --pip-ink: rgba(119,255,154,0.92);
+  --pip-ink-dim: rgba(119,255,154,0.70);
+  --pip-border: rgba(119,255,154,0.16);
+  --pip-bg: #06110a;
 
-export const metadata = {
-  title: "PIP-TRADE 3000",
-  description: "Crypto AI dashboard",
-};
+  --pip-grid-1: rgba(119,255,154,0.14);
+  --pip-grid-2: rgba(119,255,154,0.08);
 
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+  --pip-up: rgba(119,255,154,0.95);
+  --pip-up-fill: rgba(119,255,154,0.25);
+
+  --pip-down: rgba(255,80,80,0.95);
+  --pip-down-fill: rgba(255,80,80,0.18);
 }
+
+*{ box-sizing:border-box; }
+html,body{ padding:0; margin:0; background: var(--pip-bg); color: var(--pip-ink); }
+body{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+.wrap{ word-break: break-word; }
+
+/* shell */
+.pip-crt{ min-height:100vh; padding:18px; display:flex; justify-content:center; }
+.pip-shell{ width:min(980px, 100%); }
+
+.pip-topbar{
+  border:1px solid var(--pip-border);
+  border-radius:18px;
+  padding:14px 14px;
+  background: rgba(0,0,0,0.18);
+  box-shadow: 0 0 28px rgba(119,255,154,0.06);
+  display:flex;
+  gap:12px;
+  justify-content:space-between;
+  align-items:flex-start;
+}
+.pip-title{ font-size:28px; letter-spacing:2px; }
+.pip-sub{ margin-top:6px; color: var(--pip-ink-dim); font-size:14px; }
+
+.pip-topbar-right{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+
+.pip-badge{
+  border:1px solid var(--pip-border);
+  padding:6px 10px;
+  border-radius:999px;
+  color: var(--pip-ink);
+  background: rgba(0,0,0,0.18);
+}
+
+/* NAV LINKS */
+.pip-links{
+  margin-top:12px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.pip-link{
+  text-decoration:none;
+  color: var(--pip-ink);
+  border:1px solid var(--pip-border);
+  padding:10px 14px;
+  border-radius:14px;
+  background: rgba(0,0,0,0.14);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 92px;
+}
+.pip-link.active{
+  background: rgba(119,255,154,0.12);
+  box-shadow: inset 0 0 0 1px rgba(119,255,154,0.18);
+}
+
+/* tabs + actions */
+.pip-tabs{
+  margin-top:12px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.pip-tab{
+  border:1px solid var(--pip-border);
+  padding:10px 14px;
+  border-radius:14px;
+  background: rgba(0,0,0,0.12);
+  color: var(--pip-ink);
+  cursor:pointer;
+}
+.pip-tab.active{
+  background: rgba(119,255,154,0.12);
+  box-shadow: inset 0 0 0 1px rgba(119,255,154,0.18);
+}
+
+.pip-actions{
+  margin-left:auto;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.pip-btn{
+  border:1px solid var(--pip-border);
+  padding:10px 14px;
+  border-radius:14px;
+  background: rgba(0,0,0,0.12);
+  color: var(--pip-ink);
+  cursor:pointer;
+}
+.pip-btn:hover,
+.pip-tab:hover,
+.pip-link:hover{
+  background: rgba(119,255,154,0.10);
+}
+
+/* content panels */
+.pip-content{ margin-top:12px; }
+.pip-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:12px;
+}
+@media (min-width: 860px){
+  .pip-grid{ grid-template-columns: 1fr 1fr; }
+}
+
+.pip-panel{
+  border:1px solid var(--pip-border);
+  border-radius:18px;
+  padding:14px;
+  background: rgba(0,0,0,0.16);
+  box-shadow: 0 0 22px rgba(119,255,154,0.05);
+}
+.pip-heading{ font-size:18px; letter-spacing:1px; margin-bottom:12px; }
+
+.pip-row{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px dashed rgba(119,255,154,0.10);
+}
+.pip-row:last-child{ border-bottom:none; }
+
+.pip-k{ color: var(--pip-ink-dim); }
+.pip-v{ color: var(--pip-ink); font-size:20px; }
+
+/* charts */
+.pip-chartwrap{
+  border:1px solid rgba(119,255,154,0.12);
+  border-radius:16px;
+  padding:10px;
+  background: rgba(0,0,0,0.18);
+  overflow:hidden;
+}
+
+.pip-muted{ color: var(--pip-ink-dim); }
+
+/* table */
+.pip-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+.pip-table th, .pip-table td{
+  border-bottom:1px dashed rgba(119,255,154,0.10);
+  padding:10px 8px;
+  text-align:left;
+}
+.pip-table th{ color: var(--pip-ink-dim); font-weight:600; }
+
+/* ===== Full body companion stage ===== */
+.pip-pet-stage{
+  border: 1px solid rgba(119,255,154,0.12);
+  background: rgba(0,0,0,0.22);
+  border-radius: 16px;
+  padding: 12px;
+  overflow: hidden;
+}
+.pip-pet-floor{
+  height: 1px;
+  margin-top: 10px;
+  background: rgba(119,255,154,0.14);
+  box-shadow: 0 0 18px rgba(119,255,154,0.08);
+}
+.pip-pet{
+  width: 120px;
+  height: 180px;
+  position: relative;
+  will-change: transform;
+}
+.pip-pet img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: saturate(1.1) contrast(1.05);
+}
+.pip-pet.idle{ animation: petIdle 1.6s ease-in-out infinite; }
+.pip-pet.walk{ animation: petWalk 4.5s linear infinite; }
+.pip-pet.slow{ animation: petWalk 8s linear infinite; opacity: 0.9; }
+.pip-pet.stomp{ animation: petStomp 0.5s ease-in-out infinite; }
+.pip-pet.panic{ animation: petWalk 2.4s linear infinite; }
+
+@keyframes petIdle{ 0%,100%{ transform: translateY(0px);} 50%{ transform: translateY(-5px);} }
+@keyframes petWalk{ 0%{ transform: translateX(0px);} 50%{ transform: translateX(170px);} 100%{ transform: translateX(0px);} }
+@keyframes petStomp{ 0%,100%{ transform: translateX(0px) translateY(0px);} 50%{ transform: translateX(3px) translateY(-2px);} }
