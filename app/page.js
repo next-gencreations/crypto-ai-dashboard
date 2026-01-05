@@ -27,15 +27,12 @@ async function fetchJson(url, signal) {
     method: "GET",
     cache: "no-store",
     signal,
-    // mode: "cors" is default in browsers, but keeping this explicit helps debugging
     mode: "cors",
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(
-      `API ${res.status} ${res.statusText}${
-        txt ? ` — ${txt.slice(0, 140)}` : ""
-      }`
+      `API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 140)}` : ""}`
     );
   }
   return res.json();
@@ -57,24 +54,26 @@ function pickLatestEquityUSD(data) {
   return 0;
 }
 
-// ✅ Pull the latest PnL from events safely
-function pickLastPnl(data) {
-  const events = data?.events;
-  if (!Array.isArray(events) || events.length === 0) return 0;
-
-  // Walk backwards and grab the most recent numeric pnl
-  for (let i = events.length - 1; i >= 0; i--) {
-    const pnl = Number(events[i]?.details?.pnl);
-    if (Number.isFinite(pnl)) return pnl;
+function pickLastTradePnl(data) {
+  // Your backend often has an events array; try to find last event with pnl
+  const ev = data?.events;
+  if (Array.isArray(ev) && ev.length) {
+    for (let i = ev.length - 1; i >= 0; i--) {
+      const pnl = Number(ev[i]?.details?.pnl);
+      if (Number.isFinite(pnl)) return pnl;
+    }
   }
-  return 0;
+  // Some schemas put it in stats/last_trade_pnl
+  const st = Number(data?.stats?.last_trade_pnl ?? data?.last_trade_pnl);
+  return Number.isFinite(st) ? st : 0;
 }
 
 export default function HomePage() {
-  // ✅ Support both env var names (in case you used either at different times)
+  // ✅ Support both env var names (some projects accidentally use different names)
+  // Set ONE of these in Vercel: NEXT_PUBLIC_API_URL (preferred)
   const apiBase = (
     process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE ||
+    process.env.NEXT_PUBLIC_API_URL ||
     ""
   ).replace(/\/+$/, "");
 
@@ -101,12 +100,11 @@ export default function HomePage() {
 
   const [rawData, setRawData] = useState(null);
   const [logLines, setLogLines] = useState([]);
+  const [lastPnl, setLastPnl] = useState(0);
 
   async function fetchAll(signal) {
     if (!apiBase) {
-      setErr(
-        "Missing NEXT_PUBLIC_API_URL (or NEXT_PUBLIC_API_BASE) in Vercel environment variables."
-      );
+      setErr("Missing NEXT_PUBLIC_API_URL in Vercel environment variables.");
       return;
     }
 
@@ -121,12 +119,12 @@ export default function HomePage() {
       const state = String(data?.state || data?.status || "ACTIVE").toUpperCase();
       setBotState(state);
 
-      // ✅ Heartbeat shape (from your Flask /data)
+      // ✅ Heartbeat shape
       const hb = data?.heartbeat || {};
       const hbTime = hb?.time_utc || data?.timestamp || "—";
       setHeartbeat(String(hbTime));
 
-      // ✅ These live inside heartbeat now
+      // ✅ markets / positions
       const mks = safeMarketsList(hb?.markets);
       setMarkets(mks);
 
@@ -136,11 +134,15 @@ export default function HomePage() {
       const surv = String(hb?.survival_mode ?? "NORMAL").toUpperCase();
       setSurvival(surv);
 
-      // ✅ Equity is heartbeat.equity_usd (or last equity point)
+      // ✅ Equity
       const eq = pickLatestEquityUSD(data);
       setEquity(Number.isFinite(eq) ? eq : 0);
 
-      // ✅ Pet lives in data.pet (your Flask schema)
+      // ✅ Last trade pnl (for win/loss reaction)
+      const lp = pickLastTradePnl(data);
+      setLastPnl(Number.isFinite(lp) ? lp : 0);
+
+      // ✅ Pet
       const pet = data?.pet || {};
       const sex = String(pet?.sex || "girl").toLowerCase();
       const defaultName = sex === "boy" ? "VAULT BOY" : "VAULT GIRL";
@@ -158,7 +160,7 @@ export default function HomePage() {
         updated: String(pet?.time_utc || hbTime || "—"),
       });
 
-      // ✅ Logs endpoint now exists in the repaired app.py
+      // ✅ Logs (optional)
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || [];
@@ -171,15 +173,21 @@ export default function HomePage() {
     } catch (e) {
       if (e?.name === "AbortError") return;
 
-      // 🔎 If /data failed, quickly check /health to distinguish cold-start vs bad URL/CORS
+      // If /data failed, try /health to tell cold-start vs bad URL/CORS
       try {
         await fetchJson(`${apiBase}/health`, signal);
-        // If health works but data fails, it’s a backend exception or endpoint mismatch
         setErr(`API reachable, but /data failed: ${String(e?.message || e)}`);
       } catch {
-        // If even health fails, likely cold start, wrong URL, or network/CORS
         setErr(`Failed to fetch from API: ${String(e?.message || e)}`);
       }
+
+      // Keep UI stable on errors (don’t make Vault Girl look “injured”)
+      setBotState("—");
+      setOpenPositions(0);
+      setSurvival("—");
+      setEquity(0);
+      setHeartbeat("—");
+      setLastPnl(0);
     }
   }
 
@@ -201,14 +209,15 @@ export default function HomePage() {
 
   const subtitle = useMemo(() => {
     const last = lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—";
-    return `Home · API: ${apiBase || "—"} · Refresh: ${
-      REFRESH_MS / 1000
-    }s · Last: ${last} · State: ${botState}`;
+    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
 
-  // ✅ Values for the SVG reactions
-  const lastPnl = useMemo(() => pickLastPnl(rawData), [rawData]);
-  const isTrading = botState === "ACTIVE";
+  // ✅ When API errors, we disable “damage FX” so she doesn’t look cracked/beat-up
+  const disableDamageFx = !!err;
+
+  // ✅ Define “trading” indicator
+  // If your backend sets state ACTIVE while it’s running, this is a good proxy
+  const isTrading = !err && botState === "ACTIVE";
 
   return (
     <div className="pip-crt">
@@ -226,15 +235,9 @@ export default function HomePage() {
 
         {/* Main Nav */}
         <div className="pip-links">
-          <Link className="pip-link active" href="/">
-            HOME
-          </Link>
-          <Link className="pip-link" href="/candles">
-            CANDLES
-          </Link>
-          <Link className="pip-link" href="/crypto">
-            CRYPTO
-          </Link>
+          <Link className="pip-link active" href="/">HOME</Link>
+          <Link className="pip-link" href="/candles">CANDLES</Link>
+          <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
         {/* Sub Nav */}
@@ -319,51 +322,44 @@ export default function HomePage() {
                 <div className="pip-companion-col">
                   <div className="pip-petbox">
                     <VaultGirlSVG
-                      mood={companion?.mood ?? "cryo"}
-                      stage={companion?.stage ?? "cryo"}
-                      health={Number(companion?.health ?? 100)}
-                      openPositions={Number(openPositions ?? 0)}
-                      lastPnl={Number(lastPnl ?? 0)}
-                      isTrading={isTrading}
+                      mood={companion.mood || "cryo"}
+                      stage={companion.stage || "cryo"}
                       vaultNumber="13"
-                      showDebugTag={true} // ✅ leave true temporarily to confirm deploy changes
+                      health={disableDamageFx ? 100 : companion.health}
+                      openPositions={disableDamageFx ? 0 : openPositions}
+                      lastPnl={disableDamageFx ? 0 : lastPnl}
+                      isTrading={isTrading}
+                      disableDamageFx={disableDamageFx}
+                      showDebugTag={false} // turn on if you want: true
                     />
                   </div>
 
                   <div className="pip-petmeta">
-                    <div className="pip-petname">
-                      {String(companion.name || "VAULT GIRL")}
-                    </div>
+                    <div className="pip-petname">{String(companion.name || "VAULT GIRL")}</div>
                     <div className="pip-petmini">
-                      stage: {String(companion.stage || "cryo")} • mood:{" "}
-                      {String(companion.mood || "cryo")}
+                      stage: {String(companion.stage || "cryo")} • mood: {String(companion.mood || "cryo")}
+                    </div>
+                    <div className="pip-muted" style={{ marginTop: 6 }}>
+                      {isTrading ? "TRADING: ACTIVE" : "TRADING: IDLE"}
                     </div>
                   </div>
 
                   <div className="pip-stats">
                     <div className="pip-stat">
                       <div className="pip-k">HEALTH</div>
-                      <div className="pip-v">
-                        {Number(companion.health).toFixed(1)}
-                      </div>
+                      <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">HUNGER</div>
-                      <div className="pip-v">
-                        {Number(companion.hunger).toFixed(1)}
-                      </div>
+                      <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">GROWTH</div>
-                      <div className="pip-v">
-                        {Number(companion.growth).toFixed(1)}
-                      </div>
+                      <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">UPDATED</div>
-                      <div className="pip-v">
-                        {String(companion.updated || "—")}
-                      </div>
+                      <div className="pip-v">{String(companion.updated || "—")}</div>
                     </div>
                   </div>
                 </div>
@@ -388,9 +384,7 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">
-                  No logs available. Check DATA tab for backend output.
-                </div>
+                <div className="pip-muted">No logs available. Check DATA tab for backend output.</div>
               )}
             </div>
           )}
