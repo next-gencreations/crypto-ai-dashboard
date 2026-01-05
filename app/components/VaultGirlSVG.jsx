@@ -1,5 +1,15 @@
 "use client";
-
+<text
+  x="130"
+  y="332"
+  textAnchor="middle"
+  fontSize="10"
+  fill="#77ff9a"
+  opacity="0.85"
+  fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+>
+  VG_CARTOON_V2
+</text>
 export default function VaultGirlSVG({
   mood = "cryo", // happy | neutral | cryo | angry
   stage = "cryo", // cryo | egg | hatched (we mainly use cryo now)
