@@ -1,3 +1,4 @@
+// app/page.js
 "use client";
 
 import Link from "next/link";
@@ -29,7 +30,7 @@ async function fetchJson(url, signal) {
 export default function HomePage() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
 
-  const [tab, setTab] = useState("status"); // status | data | log
+  const [tab, setTab] = useState("status");
   const [err, setErr] = useState("");
   const [lastFetchAt, setLastFetchAt] = useState(null);
   const [botState, setBotState] = useState("—");
@@ -98,7 +99,9 @@ export default function HomePage() {
       }
       setMarkets(mks);
 
-      const ops = Number(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0);
+      const ops = Number(
+        data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0
+      );
       setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
       setSurvival(
@@ -113,7 +116,11 @@ export default function HomePage() {
         {};
 
       const name = String(pet?.name || "VAULT GIRL");
-      const stage = String(pet?.stage || (pet?.hatched === true ? "hatched" : "cryo"));
+
+      // IMPORTANT: default to cryo if missing
+      const stage = String(pet?.stage || "cryo");
+
+      // IMPORTANT: default to cryo mood so she looks calm
       const mood = String(pet?.mood || pet?.state || "cryo");
 
       setCompanion({
@@ -214,74 +221,78 @@ export default function HomePage() {
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
-                <div className="pip-row pip-row-tight">
+                <div className="pip-row pip-row-top">
                   <div className="pip-k">MARKETS</div>
                   <div className="pip-v pip-v-big">
                     {markets.length ? markets.join(", ") : "BTC-USD, ETH-USD"}
                   </div>
                 </div>
 
-                <div className="pip-grid-2">
-                  <div className="pip-row">
-                    <div className="pip-k">OPEN POSITIONS</div>
-                    <div className="pip-v">{openPositions}</div>
+                <div className="pip-grid">
+                  <div>
+                    <div className="pip-row">
+                      <div className="pip-k">OPEN POSITIONS</div>
+                      <div className="pip-v">{openPositions}</div>
+                    </div>
+                    <div className="pip-row">
+                      <div className="pip-k">SURVIVAL</div>
+                      <div className="pip-v">{survival}</div>
+                    </div>
                   </div>
-                  <div className="pip-row">
-                    <div className="pip-k">SURVIVAL</div>
-                    <div className="pip-v">{survival}</div>
-                  </div>
-                  <div className="pip-row">
-                    <div className="pip-k">LAST HEARTBEAT</div>
-                    <div className="pip-v">{heartbeat || "—"}</div>
-                  </div>
-                  <div className="pip-row">
-                    <div className="pip-k">EQUITY</div>
-                    <div className="pip-v">${Number(equity).toFixed(2)}</div>
+
+                  <div>
+                    <div className="pip-row">
+                      <div className="pip-k">LAST HEARTBEAT</div>
+                      <div className="pip-v">{heartbeat || "—"}</div>
+                    </div>
+                    <div className="pip-row">
+                      <div className="pip-k">EQUITY</div>
+                      <div className="pip-v">${Number(equity).toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Vault Companion */}
-              <div className="pip-panel" style={{ marginTop: 14 }}>
+              <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                {/* character */}
-                <div className="pip-petbox">
-                  <VaultGirlSVG
-                    mood={companion.mood}
-                    stage={companion.stage || "cryo"}
-                    vaultNumber="13"
-                  />
-                </div>
-
-                {/* name + quick status */}
-                <div className="pip-underpet">
-                  <div className="pip-underpet-name">{String(companion.name || "VAULT GIRL")}</div>
-                  <div className="pip-underpet-sub">
-                    stage: {String(companion.stage)} • mood: {String(companion.mood)}
-                  </div>
-                </div>
-
-                {/* stats UNDER (no right column) */}
-                <div className="pip-statgrid">
-                  <div className="pip-statcard">
-                    <div className="pip-k">HEALTH</div>
-                    <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
+                {/* ONE COLUMN layout (mobile-first) */}
+                <div className="pip-companion-col">
+                  <div className="pip-petbox">
+                    <VaultGirlSVG
+                      mood={companion.mood || "cryo"}
+                      stage={companion.stage || "cryo"}
+                      vaultNumber="13"
+                      showDebugTag={false}  // set true if you want to verify deploy
+                    />
                   </div>
 
-                  <div className="pip-statcard">
-                    <div className="pip-k">HUNGER</div>
-                    <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
+                  <div className="pip-petmeta">
+                    <div className="pip-petname">{String(companion.name || "VAULT GIRL")}</div>
+                    <div className="pip-petmini">
+                      stage: {String(companion.stage || "cryo")} • mood: {String(companion.mood || "cryo")}
+                    </div>
                   </div>
 
-                  <div className="pip-statcard">
-                    <div className="pip-k">GROWTH</div>
-                    <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
-                  </div>
-
-                  <div className="pip-statcard">
-                    <div className="pip-k">UPDATED</div>
-                    <div className="pip-v">{companion.updated}</div>
+                  {/* Stats UNDER image */}
+                  <div className="pip-stats">
+                    <div className="pip-stat">
+                      <div className="pip-k">HEALTH</div>
+                      <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
+                    </div>
+                    <div className="pip-stat">
+                      <div className="pip-k">HUNGER</div>
+                      <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
+                    </div>
+                    <div className="pip-stat">
+                      <div className="pip-k">GROWTH</div>
+                      <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
+                    </div>
+                    <div className="pip-stat">
+                      <div className="pip-k">UPDATED</div>
+                      <div className="pip-v">{String(companion.updated || "—")}</div>
+                    </div>
                   </div>
                 </div>
 
