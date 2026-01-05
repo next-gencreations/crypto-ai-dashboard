@@ -32,7 +32,11 @@ async function fetchJson(url, signal) {
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 140)}` : ""}`);
+    throw new Error(
+      `API ${res.status} ${res.statusText}${
+        txt ? ` — ${txt.slice(0, 140)}` : ""
+      }`
+    );
   }
   return res.json();
 }
@@ -53,11 +57,26 @@ function pickLatestEquityUSD(data) {
   return 0;
 }
 
+// ✅ Pull the latest PnL from events safely
+function pickLastPnl(data) {
+  const events = data?.events;
+  if (!Array.isArray(events) || events.length === 0) return 0;
+
+  // Walk backwards and grab the most recent numeric pnl
+  for (let i = events.length - 1; i >= 0; i--) {
+    const pnl = Number(events[i]?.details?.pnl);
+    if (Number.isFinite(pnl)) return pnl;
+  }
+  return 0;
+}
+
 export default function HomePage() {
-  // ✅ Support either env var name (your project has used both at different times)
-  const apiBase =
-    (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "")
-      .replace(/\/+$/, "");
+  // ✅ Support both env var names (in case you used either at different times)
+  const apiBase = (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE ||
+    ""
+  ).replace(/\/+$/, "");
 
   const [tab, setTab] = useState("status");
   const [err, setErr] = useState("");
@@ -85,7 +104,9 @@ export default function HomePage() {
 
   async function fetchAll(signal) {
     if (!apiBase) {
-      setErr("Missing NEXT_PUBLIC_API_URL in Vercel environment variables.");
+      setErr(
+        "Missing NEXT_PUBLIC_API_URL (or NEXT_PUBLIC_API_BASE) in Vercel environment variables."
+      );
       return;
     }
 
@@ -180,8 +201,14 @@ export default function HomePage() {
 
   const subtitle = useMemo(() => {
     const last = lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—";
-    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
+    return `Home · API: ${apiBase || "—"} · Refresh: ${
+      REFRESH_MS / 1000
+    }s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
+
+  // ✅ Values for the SVG reactions
+  const lastPnl = useMemo(() => pickLastPnl(rawData), [rawData]);
+  const isTrading = botState === "ACTIVE";
 
   return (
     <div className="pip-crt">
@@ -199,20 +226,38 @@ export default function HomePage() {
 
         {/* Main Nav */}
         <div className="pip-links">
-          <Link className="pip-link active" href="/">HOME</Link>
-          <Link className="pip-link" href="/candles">CANDLES</Link>
-          <Link className="pip-link" href="/crypto">CRYPTO</Link>
+          <Link className="pip-link active" href="/">
+            HOME
+          </Link>
+          <Link className="pip-link" href="/candles">
+            CANDLES
+          </Link>
+          <Link className="pip-link" href="/crypto">
+            CRYPTO
+          </Link>
         </div>
 
         {/* Sub Nav */}
         <div className="pip-links">
-          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
+          <button
+            className={`pip-link ${tab === "status" ? "active" : ""}`}
+            onClick={() => setTab("status")}
+            type="button"
+          >
             STATUS
           </button>
-          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
+          <button
+            className={`pip-link ${tab === "data" ? "active" : ""}`}
+            onClick={() => setTab("data")}
+            type="button"
+          >
             DATA
           </button>
-          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
+          <button
+            className={`pip-link ${tab === "log" ? "active" : ""}`}
+            onClick={() => setTab("log")}
+            type="button"
+          >
             LOG
           </button>
         </div>
@@ -274,36 +319,51 @@ export default function HomePage() {
                 <div className="pip-companion-col">
                   <div className="pip-petbox">
                     <VaultGirlSVG
-                      mood={companion.mood || "cryo"}
-                      stage={companion.stage || "cryo"}
+                      mood={companion?.mood ?? "cryo"}
+                      stage={companion?.stage ?? "cryo"}
+                      health={Number(companion?.health ?? 100)}
+                      openPositions={Number(openPositions ?? 0)}
+                      lastPnl={Number(lastPnl ?? 0)}
+                      isTrading={isTrading}
                       vaultNumber="13"
                       showDebugTag={true} // ✅ leave true temporarily to confirm deploy changes
                     />
                   </div>
 
                   <div className="pip-petmeta">
-                    <div className="pip-petname">{String(companion.name || "VAULT GIRL")}</div>
+                    <div className="pip-petname">
+                      {String(companion.name || "VAULT GIRL")}
+                    </div>
                     <div className="pip-petmini">
-                      stage: {String(companion.stage || "cryo")} • mood: {String(companion.mood || "cryo")}
+                      stage: {String(companion.stage || "cryo")} • mood:{" "}
+                      {String(companion.mood || "cryo")}
                     </div>
                   </div>
 
                   <div className="pip-stats">
                     <div className="pip-stat">
                       <div className="pip-k">HEALTH</div>
-                      <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
+                      <div className="pip-v">
+                        {Number(companion.health).toFixed(1)}
+                      </div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">HUNGER</div>
-                      <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
+                      <div className="pip-v">
+                        {Number(companion.hunger).toFixed(1)}
+                      </div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">GROWTH</div>
-                      <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
+                      <div className="pip-v">
+                        {Number(companion.growth).toFixed(1)}
+                      </div>
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">UPDATED</div>
-                      <div className="pip-v">{String(companion.updated || "—")}</div>
+                      <div className="pip-v">
+                        {String(companion.updated || "—")}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -328,7 +388,9 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">No logs available. Check DATA tab for backend output.</div>
+                <div className="pip-muted">
+                  No logs available. Check DATA tab for backend output.
+                </div>
               )}
             </div>
           )}
