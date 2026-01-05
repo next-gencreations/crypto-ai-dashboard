@@ -1,271 +1,254 @@
+// app/components/VaultGirlSVG.jsx
 "use client";
-<text
-  x="130"
-  y="332"
-  textAnchor="middle"
-  fontSize="10"
-  fill="#77ff9a"
-  opacity="0.85"
-  fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
->
-  VG_CARTOON_V2
-</text>
+
 export default function VaultGirlSVG({
-  mood = "cryo", // happy | neutral | cryo | angry
-  stage = "cryo", // cryo | egg | hatched (we mainly use cryo now)
+  mood = "cryo",     // cryo | happy | neutral | angry
+  stage = "cryo",    // cryo | egg | hatched
   vaultNumber = "13",
+  showDebugTag = false,
 }) {
   const line = "#77ff9a";
 
   const glow =
     mood === "happy"
-      ? "drop-shadow(0 0 14px rgba(119,255,154,.9))"
+      ? "drop-shadow(0 0 16px rgba(119,255,154,.95))"
       : mood === "cryo"
-      ? "drop-shadow(0 0 10px rgba(119,255,154,.65))"
-      : "drop-shadow(0 0 10px rgba(119,255,154,.75))";
+      ? "drop-shadow(0 0 10px rgba(119,255,154,.6))"
+      : "drop-shadow(0 0 12px rgba(119,255,154,.75))";
 
-  // Face expressions (simple + readable on mobile)
-  const brows =
-    mood === "angry" ? (
-      <>
-        <path d="M112 86 Q120 80 128 84" stroke={line} strokeWidth="2" fill="none" opacity="0.9" />
-        <path d="M148 86 Q140 80 132 84" stroke={line} strokeWidth="2" fill="none" opacity="0.9" />
-      </>
-    ) : mood === "happy" ? (
-      <>
-        <path d="M112 84 Q120 82 128 84" stroke={line} strokeWidth="2" fill="none" opacity="0.7" />
-        <path d="M148 84 Q140 82 132 84" stroke={line} strokeWidth="2" fill="none" opacity="0.7" />
-      </>
-    ) : (
-      <>
-        <path d="M112 84 Q120 84 128 84" stroke={line} strokeWidth="2" fill="none" opacity="0.55" />
-        <path d="M148 84 Q140 84 132 84" stroke={line} strokeWidth="2" fill="none" opacity="0.55" />
-      </>
-    );
-
-  const mouth =
-    mood === "happy" ? (
-      <path
-        d="M118 104 Q130 114 142 104"
-        stroke={line}
-        strokeWidth="2.5"
-        fill="none"
-        strokeLinecap="round"
-      />
-    ) : mood === "angry" ? (
-      <path
-        d="M118 110 Q130 104 142 110"
-        stroke={line}
-        strokeWidth="2.5"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.9"
-      />
-    ) : (
-      <path
-        d="M120 110 Q130 112 140 110"
-        stroke={line}
-        strokeWidth="2.5"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-    );
-
-  const cheekGlow = mood === "happy" ? 0.18 : 0.1;
+  // Make cryo feel calm (not angry)
+  const faceMode =
+    mood === "angry" ? "angry" :
+    mood === "happy" ? "happy" :
+    "calm"; // default (includes cryo/neutral)
 
   return (
     <svg
       viewBox="0 0 260 340"
       width="100%"
       height="100%"
-      aria-label="Vault Girl"
       role="img"
+      aria-label="Vault Girl"
       style={{ display: "block", filter: glow }}
     >
-      {/* ====== BACK PANEL ====== */}
+      {/* Background panel */}
       <rect
         x="10"
         y="10"
         width="240"
         height="320"
         rx="18"
-        fill="rgba(0,0,0,0.22)"
-        stroke="rgba(119,255,154,0.25)"
-        strokeWidth="2"
-      />
-
-      {/* ====== CRYO TUBE (stage === cryo) ====== */}
-      {stage === "cryo" && (
-        <>
-          {/* outer glass */}
-          <rect
-            x="48"
-            y="30"
-            width="164"
-            height="280"
-            rx="78"
-            fill="rgba(119,255,154,0.04)"
-            stroke="rgba(119,255,154,0.22)"
-            strokeWidth="2"
-          />
-
-          {/* inner rim */}
-          <rect
-            x="62"
-            y="44"
-            width="136"
-            height="252"
-            rx="68"
-            fill="rgba(119,255,154,0.03)"
-            stroke="rgba(119,255,154,0.12)"
-            strokeWidth="2"
-          />
-
-          {/* top cap */}
-          <rect
-            x="82"
-            y="34"
-            width="96"
-            height="28"
-            rx="14"
-            fill="rgba(0,0,0,0.25)"
-            stroke="rgba(119,255,154,0.18)"
-            strokeWidth="2"
-          />
-
-          {/* bottom cap */}
-          <rect
-            x="82"
-            y="278"
-            width="96"
-            height="28"
-            rx="14"
-            fill="rgba(0,0,0,0.25)"
-            stroke="rgba(119,255,154,0.18)"
-            strokeWidth="2"
-          />
-
-          {/* glass highlight */}
-          <path
-            d="M76 64 Q66 170 76 286"
-            stroke="rgba(119,255,154,0.16)"
-            strokeWidth="6"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.7"
-          />
-
-          {/* bubbles */}
-          <circle cx="90" cy="160" r="3" fill="rgba(119,255,154,0.18)" />
-          <circle cx="105" cy="205" r="2.5" fill="rgba(119,255,154,0.14)" />
-          <circle cx="170" cy="190" r="2" fill="rgba(119,255,154,0.12)" />
-          <circle cx="155" cy="120" r="2.5" fill="rgba(119,255,154,0.14)" />
-        </>
-      )}
-
-      {/* ====== VAULT GIRL (cartoon) ====== */}
-
-      {/* hair back */}
-      <path
-        d="M96 86
-           Q98 56 130 52
-           Q164 56 166 88
-           Q162 120 154 132
-           Q150 140 138 136
-           Q130 134 122 136
-           Q110 140 106 132
-           Q96 118 96 86Z"
-        fill="rgba(119,255,154,0.28)"
+        fill="rgba(0,0,0,0.25)"
         stroke="rgba(119,255,154,0.22)"
         strokeWidth="2"
       />
 
-      {/* head */}
+      {/* ===== CRYO TUBE (stage === "cryo") ===== */}
+      {stage === "cryo" && (
+        <>
+          {/* outer tube */}
+          <rect
+            x="48"
+            y="36"
+            width="164"
+            height="268"
+            rx="82"
+            fill="rgba(119,255,154,0.03)"
+            stroke="rgba(119,255,154,0.28)"
+            strokeWidth="2"
+          />
+          {/* inner glass */}
+          <rect
+            x="60"
+            y="52"
+            width="140"
+            height="236"
+            rx="70"
+            fill="rgba(119,255,154,0.035)"
+            stroke="rgba(119,255,154,0.18)"
+            strokeWidth="2"
+          />
+          {/* top cap */}
+          <rect
+            x="72"
+            y="44"
+            width="116"
+            height="22"
+            rx="11"
+            fill="rgba(0,0,0,0.25)"
+            stroke="rgba(119,255,154,0.22)"
+            strokeWidth="2"
+          />
+          {/* bottom cap */}
+          <rect
+            x="72"
+            y="274"
+            width="116"
+            height="22"
+            rx="11"
+            fill="rgba(0,0,0,0.25)"
+            stroke="rgba(119,255,154,0.22)"
+            strokeWidth="2"
+          />
+
+          {/* bubbles */}
+          <circle cx="84" cy="120" r="2.2" fill="rgba(119,255,154,0.25)" />
+          <circle cx="178" cy="148" r="2.8" fill="rgba(119,255,154,0.20)" />
+          <circle cx="96" cy="170" r="3.0" fill="rgba(119,255,154,0.18)" />
+          <circle cx="170" cy="205" r="2.2" fill="rgba(119,255,154,0.22)" />
+          <circle cx="120" cy="230" r="2.4" fill="rgba(119,255,154,0.18)" />
+
+          {/* subtle vertical pipe */}
+          <rect
+            x="66"
+            y="64"
+            width="6"
+            height="212"
+            rx="3"
+            fill="rgba(0,0,0,0.22)"
+          />
+          <rect
+            x="69"
+            y="64"
+            width="1.5"
+            height="212"
+            rx="1"
+            fill="rgba(119,255,154,0.20)"
+          />
+        </>
+      )}
+
+      {/* ===== CARTOON VAULT GIRL ===== */}
+
+      {/* Hair behind head */}
+      <path
+        d="M92 92
+           Q98 60 130 58
+           Q168 60 170 98
+           Q168 120 150 128
+           Q138 132 130 132
+           Q120 132 110 128
+           Q92 120 92 92 Z"
+        fill="rgba(119,255,154,0.16)"
+        stroke="rgba(119,255,154,0.28)"
+        strokeWidth="2"
+      />
+
+      {/* Head */}
       <ellipse
         cx="130"
         cy="95"
-        rx="34"
-        ry="38"
+        rx="30"
+        ry="34"
         fill="rgba(119,255,154,0.14)"
         stroke={line}
         strokeWidth="3"
       />
 
-      {/* bangs */}
+      {/* Hair fringe */}
       <path
-        d="M100 88
-           Q108 64 130 64
-           Q152 64 160 88
-           Q150 78 130 78
-           Q110 78 100 88Z"
-        fill="rgba(119,255,154,0.34)"
-        opacity="0.9"
+        d="M105 88 Q122 70 145 78 Q154 82 158 92 Q150 86 136 88 Q122 90 105 88 Z"
+        fill="rgba(119,255,154,0.22)"
       />
 
-      {/* cheeks */}
-      <ellipse cx="113" cy="110" rx="8" ry="5" fill={`rgba(119,255,154,${cheekGlow})`} />
-      <ellipse cx="147" cy="110" rx="8" ry="5" fill={`rgba(119,255,154,${cheekGlow})`} />
+      {/* Eyes */}
+      <circle cx="120" cy="96" r="3.2" fill={line} opacity="0.9" />
+      <circle cx="140" cy="96" r="3.2" fill={line} opacity="0.9" />
 
-      {/* eyes */}
-      <circle cx="118" cy="98" r="4" fill={line} opacity="0.95" />
-      <circle cx="142" cy="98" r="4" fill={line} opacity="0.95" />
+      {/* Eyebrows (calm/happy vs angry) */}
+      {faceMode === "angry" ? (
+        <>
+          <path d="M112 90 Q120 86 128 90" stroke={line} strokeWidth="2" fill="none" />
+          <path d="M148 90 Q140 86 132 90" stroke={line} strokeWidth="2" fill="none" />
+        </>
+      ) : (
+        <>
+          <path d="M112 90 Q120 88 128 90" stroke={line} strokeWidth="2" fill="none" opacity="0.7" />
+          <path d="M148 90 Q140 88 132 90" stroke={line} strokeWidth="2" fill="none" opacity="0.7" />
+        </>
+      )}
 
-      {/* lashes (simple feminine cue, still tasteful) */}
-      <path d="M110 95 L114 93" stroke={line} strokeWidth="2" opacity="0.6" />
-      <path d="M126 95 L122 93" stroke={line} strokeWidth="2" opacity="0.6" />
-      <path d="M134 95 L138 93" stroke={line} strokeWidth="2" opacity="0.6" />
-      <path d="M150 95 L146 93" stroke={line} strokeWidth="2" opacity="0.6" />
+      {/* Mouth */}
+      {faceMode === "happy" ? (
+        <path
+          d="M116 110 Q130 120 144 110"
+          stroke={line}
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      ) : faceMode === "angry" ? (
+        <path
+          d="M116 114 Q130 108 144 114"
+          stroke={line}
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      ) : (
+        // calm (default)
+        <path
+          d="M118 112 Q130 116 142 112"
+          stroke={line}
+          strokeWidth="2.2"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+      )}
 
-      {/* brows */}
-      {brows}
+      {/* Neck */}
+      <rect
+        x="124"
+        y="128"
+        width="12"
+        height="10"
+        rx="5"
+        fill="rgba(119,255,154,0.16)"
+        stroke="rgba(119,255,154,0.25)"
+        strokeWidth="1.5"
+      />
 
-      {/* mouth */}
-      {mouth}
-
-      {/* neck */}
-      <rect x="124" y="132" width="12" height="10" rx="5" fill="rgba(119,255,154,0.18)" />
-
-      {/* body (curvier / clearly female, still modest) */}
+      {/* Body (slightly more feminine silhouette, still tasteful) */}
       <path
-        d="M98 150
-           Q130 132 162 150
-           L162 218
-           Q160 242 146 250
-           Q130 260 114 250
-           Q100 242 98 218Z"
+        d="M96 140
+           Q130 126 164 140
+           Q170 158 165 198
+           Q162 222 150 232
+           Q140 240 130 240
+           Q120 240 110 232
+           Q98 222 95 198
+           Q90 158 96 140 Z"
         fill="rgba(119,255,154,0.10)"
         stroke={line}
         strokeWidth="3"
       />
 
-      {/* subtle chest contour (NOT explicit, just cartoon shaping) */}
+      {/* Chest detail (subtle) */}
       <path
-        d="M112 172
-           Q130 162 148 172"
-        stroke="rgba(119,255,154,0.45)"
+        d="M110 158 Q130 150 150 158"
+        stroke="rgba(119,255,154,0.35)"
         strokeWidth="2"
         fill="none"
-        opacity="0.7"
       />
 
-      {/* zipper */}
+      {/* Zipper */}
       <line
         x1="130"
-        y1="150"
+        y1="140"
         x2="130"
-        y2="240"
+        y2="235"
         stroke={line}
         strokeWidth="2"
         opacity="0.35"
       />
 
-      {/* vault number */}
+      {/* Vault number */}
       <text
         x="130"
-        y="205"
+        y="195"
         textAnchor="middle"
-        fontSize="24"
+        fontSize="22"
         fill={line}
         opacity="0.85"
         fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
@@ -273,9 +256,9 @@ export default function VaultGirlSVG({
         {vaultNumber}
       </text>
 
-      {/* arms (softer curve) */}
+      {/* Arms */}
       <path
-        d="M100 168 Q78 186 86 212"
+        d="M98 158 Q78 178 88 206"
         stroke={line}
         strokeWidth="7"
         fill="none"
@@ -283,7 +266,7 @@ export default function VaultGirlSVG({
         opacity="0.95"
       />
       <path
-        d="M160 168 Q182 186 174 212"
+        d="M162 158 Q182 178 172 206"
         stroke={line}
         strokeWidth="7"
         fill="none"
@@ -291,37 +274,52 @@ export default function VaultGirlSVG({
         opacity="0.95"
       />
 
-      {/* legs */}
+      {/* Legs */}
       <path
-        d="M120 252 Q112 282 120 302"
+        d="M123 240 Q112 270 122 304"
         stroke={line}
         strokeWidth="7"
         fill="none"
         strokeLinecap="round"
       />
       <path
-        d="M140 252 Q148 282 140 302"
+        d="M137 240 Q148 270 138 304"
         stroke={line}
         strokeWidth="7"
         fill="none"
         strokeLinecap="round"
       />
 
-      {/* boots */}
-      <ellipse cx="120" cy="306" rx="12" ry="6" fill="rgba(119,255,154,0.65)" />
-      <ellipse cx="140" cy="306" rx="12" ry="6" fill="rgba(119,255,154,0.65)" />
+      {/* Shoes */}
+      <ellipse cx="122" cy="308" rx="10" ry="5.5" fill="rgba(119,255,154,0.75)" />
+      <ellipse cx="138" cy="308" rx="10" ry="5.5" fill="rgba(119,255,154,0.75)" />
 
-      {/* egg overlay (kept for compatibility, but cryo is the main stage now) */}
+      {/* Egg overlay (if you ever use stage="egg") */}
       {stage === "egg" && (
         <ellipse
           cx="130"
-          cy="180"
+          cy="200"
           rx="58"
-          ry="84"
+          ry="82"
           fill="rgba(119,255,154,0.06)"
-          stroke="rgba(119,255,154,0.28)"
+          stroke="rgba(119,255,154,0.30)"
           strokeWidth="2"
         />
+      )}
+
+      {/* Debug tag to prove deployment */}
+      {showDebugTag && (
+        <text
+          x="130"
+          y="332"
+          textAnchor="middle"
+          fontSize="10"
+          fill={line}
+          opacity="0.85"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+        >
+          VG_CARTOON_V3
+        </text>
       )}
     </svg>
   );
