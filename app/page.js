@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import VaultGirlSVG from "./components/VaultGirlSVG";
 
 const REFRESH_MS = 5000;
+const FETCH_TIMEOUT_MS = 20000; // Render can cold-start, give it time
 
 function safeMarketsList(m) {
   try {
@@ -22,13 +23,41 @@ function safeMarketsList(m) {
 }
 
 async function fetchJson(url, signal) {
-  const res = await fetch(url, { cache: "no-store", signal });
-  if (!res.ok) throw new Error(`API responded ${res.status}`);
+  const res = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+    signal,
+    // mode: "cors" is default in browsers, but keeping this explicit helps debugging
+    mode: "cors",
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 140)}` : ""}`);
+  }
   return res.json();
 }
 
+function pickLatestEquityUSD(data) {
+  // Prefer heartbeat.equity_usd
+  const hbEq = Number(data?.heartbeat?.equity_usd);
+  if (Number.isFinite(hbEq)) return hbEq;
+
+  // Fallback: last equity point array
+  const arr = data?.equity;
+  if (Array.isArray(arr) && arr.length) {
+    const last = arr[arr.length - 1];
+    const v = Number(last?.equity_usd);
+    if (Number.isFinite(v)) return v;
+  }
+
+  return 0;
+}
+
 export default function HomePage() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
+  // ✅ Support either env var name (your project has used both at different times)
+  const apiBase =
+    (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "")
+      .replace(/\/+$/, "");
 
   const [tab, setTab] = useState("status");
   const [err, setErr] = useState("");
@@ -63,79 +92,55 @@ export default function HomePage() {
     try {
       setErr("");
 
+      // ✅ Main payload
       const data = await fetchJson(`${apiBase}/data`, signal);
       setRawData(data);
 
-      const hb =
-        data?.last_heartbeat ??
-        data?.heartbeat ??
-        data?.hb ??
-        data?.timestamp ??
-        "—";
-      setHeartbeat(typeof hb === "string" ? hb : hb?.time_utc || "—");
+      // ✅ Backend returns state at top level
+      const state = String(data?.state || data?.status || "ACTIVE").toUpperCase();
+      setBotState(state);
 
-      const botStatus = data?.bot_status || data?.status || data?.state || "ACTIVE";
-      setBotState(String(botStatus).toUpperCase());
+      // ✅ Heartbeat shape (from your Flask /data)
+      const hb = data?.heartbeat || {};
+      const hbTime = hb?.time_utc || data?.timestamp || "—";
+      setHeartbeat(String(hbTime));
 
-      const eq = Number(
-        data?.total_pnl_usd ??
-          data?.equity ??
-          data?.pnl ??
-          data?.total_pnl ??
-          0
-      );
-      setEquity(Number.isFinite(eq) ? eq : 0);
-
-      let mks = [];
-      if (data?.markets) mks = safeMarketsList(data.markets);
-      else if (data?.trading_pairs) mks = safeMarketsList(data.trading_pairs);
-      else if (data?.config?.markets) mks = safeMarketsList(data.config.markets);
-      else if (data?.market_list) mks = safeMarketsList(data.market_list);
-      else if (typeof data?.market === "string") {
-        mks = data.market
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
-      }
+      // ✅ These live inside heartbeat now
+      const mks = safeMarketsList(hb?.markets);
       setMarkets(mks);
 
-      const ops = Number(
-        data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0
-      );
+      const ops = Number(hb?.open_positions ?? hb?.openPositions ?? 0);
       setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
-      setSurvival(
-        String(data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL").toUpperCase()
-      );
+      const surv = String(hb?.survival_mode ?? "NORMAL").toUpperCase();
+      setSurvival(surv);
 
-      const pet =
-        data?.vault_girl ||
-        data?.vault_boy ||
-        data?.vault_companion ||
-        data?.companion ||
-        {};
+      // ✅ Equity is heartbeat.equity_usd (or last equity point)
+      const eq = pickLatestEquityUSD(data);
+      setEquity(Number.isFinite(eq) ? eq : 0);
 
-      const name = String(pet?.name || "VAULT GIRL");
+      // ✅ Pet lives in data.pet (your Flask schema)
+      const pet = data?.pet || {};
+      const sex = String(pet?.sex || "girl").toLowerCase();
+      const defaultName = sex === "boy" ? "VAULT BOY" : "VAULT GIRL";
 
-      // IMPORTANT: default to cryo if missing
       const stage = String(pet?.stage || "cryo");
-
-      // IMPORTANT: default to cryo mood so she looks calm
-      const mood = String(pet?.mood || pet?.state || "cryo");
+      const mood = String(pet?.mood || "cryo");
 
       setCompanion({
-        name,
+        name: String(pet?.name || defaultName),
         stage,
         mood,
         health: Number(pet?.health ?? 100.0) || 0,
         hunger: Number(pet?.hunger ?? 100.0) || 0,
         growth: Number(pet?.growth ?? 0.0) || 0,
-        updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
+        updated: String(pet?.time_utc || hbTime || "—"),
       });
 
+      // ✅ Logs endpoint now exists in the repaired app.py
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
-        const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
+        const lines = Array.isArray(logs) ? logs : logs?.lines || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
         setLogLines([]);
@@ -144,7 +149,16 @@ export default function HomePage() {
       setLastFetchAt(new Date());
     } catch (e) {
       if (e?.name === "AbortError") return;
-      setErr(String(e?.message || e));
+
+      // 🔎 If /data failed, quickly check /health to distinguish cold-start vs bad URL/CORS
+      try {
+        await fetchJson(`${apiBase}/health`, signal);
+        // If health works but data fails, it’s a backend exception or endpoint mismatch
+        setErr(`API reachable, but /data failed: ${String(e?.message || e)}`);
+      } catch {
+        // If even health fails, likely cold start, wrong URL, or network/CORS
+        setErr(`Failed to fetch from API: ${String(e?.message || e)}`);
+      }
     }
   }
 
@@ -155,7 +169,7 @@ export default function HomePage() {
     const t = setInterval(() => {
       const ac2 = new AbortController();
       fetchAll(ac2.signal);
-      setTimeout(() => ac2.abort(), 8000);
+      setTimeout(() => ac2.abort(), FETCH_TIMEOUT_MS);
     }, REFRESH_MS);
 
     return () => {
@@ -224,7 +238,7 @@ export default function HomePage() {
                 <div className="pip-row pip-row-top">
                   <div className="pip-k">MARKETS</div>
                   <div className="pip-v pip-v-big">
-                    {markets.length ? markets.join(", ") : "BTC-USD, ETH-USD"}
+                    {markets.length ? markets.join(", ") : "BTCUSDT, ETHUSDT"}
                   </div>
                 </div>
 
@@ -257,14 +271,13 @@ export default function HomePage() {
               <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                {/* ONE COLUMN layout (mobile-first) */}
                 <div className="pip-companion-col">
                   <div className="pip-petbox">
                     <VaultGirlSVG
                       mood={companion.mood || "cryo"}
                       stage={companion.stage || "cryo"}
                       vaultNumber="13"
-                      showDebugTag={false}  // set true if you want to verify deploy
+                      showDebugTag={true} // ✅ leave true temporarily to confirm deploy changes
                     />
                   </div>
 
@@ -275,7 +288,6 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {/* Stats UNDER image */}
                   <div className="pip-stats">
                     <div className="pip-stat">
                       <div className="pip-k">HEALTH</div>
@@ -316,7 +328,7 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">No logs available. Check DATA tab for system output.</div>
+                <div className="pip-muted">No logs available. Check DATA tab for backend output.</div>
               )}
             </div>
           )}
