@@ -1,4 +1,3 @@
-// app/page.js
 "use client";
 
 import Link from "next/link";
@@ -74,8 +73,7 @@ export default function HomePage() {
         "—";
       setHeartbeat(typeof hb === "string" ? hb : hb?.time_utc || "—");
 
-      const botStatus =
-        data?.bot_status || data?.status || data?.state || "ACTIVE";
+      const botStatus = data?.bot_status || data?.status || data?.state || "ACTIVE";
       setBotState(String(botStatus).toUpperCase());
 
       const eq = Number(
@@ -100,15 +98,11 @@ export default function HomePage() {
       }
       setMarkets(mks);
 
-      const ops = Number(
-        data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0
-      );
+      const ops = Number(data?.open_positions ?? data?.openPositions ?? data?.positions ?? 0);
       setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
       setSurvival(
-        String(
-          data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL"
-        ).toUpperCase()
+        String(data?.survival_mode ?? data?.survival ?? data?.mode ?? "NORMAL").toUpperCase()
       );
 
       const pet =
@@ -119,27 +113,22 @@ export default function HomePage() {
         {};
 
       const name = String(pet?.name || "VAULT GIRL");
-      // If API says egg, we'll still show CRYO unless you want it dynamic.
-      // You asked for cryo tube, so we force stage to "cryo" below.
+      const stage = String(pet?.stage || (pet?.hatched === true ? "hatched" : "cryo"));
       const mood = String(pet?.mood || pet?.state || "cryo");
 
       setCompanion({
         name,
-        stage: "cryo", // FORCE CRYO TUBE
+        stage,
         mood,
         health: Number(pet?.health ?? 100.0) || 0,
         hunger: Number(pet?.hunger ?? 100.0) || 0,
         growth: Number(pet?.growth ?? 0.0) || 0,
-        updated: String(
-          pet?.updated || pet?.timestamp || data?.timestamp || "—"
-        ),
+        updated: String(pet?.updated || pet?.timestamp || data?.timestamp || "—"),
       });
 
       try {
         const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
-        const lines = Array.isArray(logs)
-          ? logs
-          : logs?.lines || logs?.log || [];
+        const lines = Array.isArray(logs) ? logs : logs?.lines || logs?.log || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
         setLogLines([]);
@@ -170,9 +159,7 @@ export default function HomePage() {
 
   const subtitle = useMemo(() => {
     const last = lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—";
-    return `Home · API: ${apiBase || "—"} · Refresh: ${
-      REFRESH_MS / 1000
-    }s · Last: ${last} · State: ${botState}`;
+    return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
 
   return (
@@ -191,38 +178,20 @@ export default function HomePage() {
 
         {/* Main Nav */}
         <div className="pip-links">
-          <Link className="pip-link active" href="/">
-            HOME
-          </Link>
-          <Link className="pip-link" href="/candles">
-            CANDLES
-          </Link>
-          <Link className="pip-link" href="/crypto">
-            CRYPTO
-          </Link>
+          <Link className="pip-link active" href="/">HOME</Link>
+          <Link className="pip-link" href="/candles">CANDLES</Link>
+          <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
         {/* Sub Nav */}
         <div className="pip-links">
-          <button
-            className={`pip-link ${tab === "status" ? "active" : ""}`}
-            onClick={() => setTab("status")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
             STATUS
           </button>
-          <button
-            className={`pip-link ${tab === "data" ? "active" : ""}`}
-            onClick={() => setTab("data")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
             DATA
           </button>
-          <button
-            className={`pip-link ${tab === "log" ? "active" : ""}`}
-            onClick={() => setTab("log")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
             LOG
           </button>
         </div>
@@ -245,109 +214,79 @@ export default function HomePage() {
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
-                <div
-                  className="pip-row"
-                  style={{
-                    padding: "12px 0",
-                    borderBottom: "1px solid rgba(119,255,154,0.2)",
-                  }}
-                >
+                <div className="pip-row pip-row-tight">
                   <div className="pip-k">MARKETS</div>
-                  <div className="pip-v" style={{ fontSize: "16px" }}>
+                  <div className="pip-v pip-v-big">
                     {markets.length ? markets.join(", ") : "BTC-USD, ETH-USD"}
                   </div>
                 </div>
 
-                <div className="pip-grid">
-                  <div>
-                    <div className="pip-row">
-                      <div className="pip-k">OPEN POSITIONS</div>
-                      <div className="pip-v">{openPositions}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">SURVIVAL</div>
-                      <div className="pip-v">{survival}</div>
-                    </div>
+                <div className="pip-grid-2">
+                  <div className="pip-row">
+                    <div className="pip-k">OPEN POSITIONS</div>
+                    <div className="pip-v">{openPositions}</div>
                   </div>
-
-                  <div>
-                    <div className="pip-row">
-                      <div className="pip-k">LAST HEARTBEAT</div>
-                      <div className="pip-v">{heartbeat || "—"}</div>
-                    </div>
-                    <div className="pip-row">
-                      <div className="pip-k">EQUITY</div>
-                      <div className="pip-v">${Number(equity).toFixed(2)}</div>
-                    </div>
+                  <div className="pip-row">
+                    <div className="pip-k">SURVIVAL</div>
+                    <div className="pip-v">{survival}</div>
+                  </div>
+                  <div className="pip-row">
+                    <div className="pip-k">LAST HEARTBEAT</div>
+                    <div className="pip-v">{heartbeat || "—"}</div>
+                  </div>
+                  <div className="pip-row">
+                    <div className="pip-k">EQUITY</div>
+                    <div className="pip-v">${Number(equity).toFixed(2)}</div>
                   </div>
                 </div>
               </div>
 
               {/* Vault Companion */}
-              <div className="pip-panel" style={{ marginTop: "14px" }}>
+              <div className="pip-panel" style={{ marginTop: 14 }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
-                {/* SINGLE COLUMN: girl + info + stats UNDER */}
-                <div className="pip-companion-stack">
-                  <div className="pip-petbox">
-                    <VaultGirlSVG
-                      mood={companion.mood}
-                      stage="cryo"
-                      vaultNumber="13"
-                    />
+                {/* character */}
+                <div className="pip-petbox">
+                  <VaultGirlSVG
+                    mood={companion.mood}
+                    stage={companion.stage || "cryo"}
+                    vaultNumber="13"
+                  />
+                </div>
+
+                {/* name + quick status */}
+                <div className="pip-underpet">
+                  <div className="pip-underpet-name">{String(companion.name || "VAULT GIRL")}</div>
+                  <div className="pip-underpet-sub">
+                    stage: {String(companion.stage)} • mood: {String(companion.mood)}
+                  </div>
+                </div>
+
+                {/* stats UNDER (no right column) */}
+                <div className="pip-statgrid">
+                  <div className="pip-statcard">
+                    <div className="pip-k">HEALTH</div>
+                    <div className="pip-v">{Number(companion.health).toFixed(1)}</div>
                   </div>
 
-                  {/* Name + quick info */}
-                  <div className="pip-underlabel">
-                    <div className="pip-underlabel-title">
-                      {String(companion.name || "VAULT GIRL")}
-                    </div>
-                    <div className="pip-underlabel-sub">
-                      stage: {String(companion.stage)} • mood:{" "}
-                      {String(companion.mood)}
-                    </div>
+                  <div className="pip-statcard">
+                    <div className="pip-k">HUNGER</div>
+                    <div className="pip-v">{Number(companion.hunger).toFixed(1)}</div>
                   </div>
 
-                  {/* Stats: now under the girl */}
-                  <div className="pip-stats-grid">
-                    <div className="pip-panel">
-                      <div className="pip-row">
-                        <div className="pip-k">HEALTH</div>
-                        <div className="pip-v">
-                          {Number(companion.health).toFixed(1)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pip-panel">
-                      <div className="pip-row">
-                        <div className="pip-k">HUNGER</div>
-                        <div className="pip-v">
-                          {Number(companion.hunger).toFixed(1)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pip-panel">
-                      <div className="pip-row">
-                        <div className="pip-k">GROWTH</div>
-                        <div className="pip-v">
-                          {Number(companion.growth).toFixed(1)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pip-panel">
-                      <div className="pip-row">
-                        <div className="pip-k">UPDATED</div>
-                        <div className="pip-v">{companion.updated}</div>
-                      </div>
-                    </div>
+                  <div className="pip-statcard">
+                    <div className="pip-k">GROWTH</div>
+                    <div className="pip-v">{Number(companion.growth).toFixed(1)}</div>
                   </div>
 
-                  <div className="pip-muted" style={{ marginTop: "12px" }}>
-                    Vault companion status updates with each trade.
+                  <div className="pip-statcard">
+                    <div className="pip-k">UPDATED</div>
+                    <div className="pip-v">{companion.updated}</div>
                   </div>
+                </div>
+
+                <div className="pip-muted pip-footnote">
+                  Vault companion status updates with each trade.
                 </div>
               </div>
             </>
@@ -366,9 +305,7 @@ export default function HomePage() {
               {logLines?.length ? (
                 <pre className="pip-code">{logLines.join("\n")}</pre>
               ) : (
-                <div className="pip-muted">
-                  No logs available. Check DATA tab for system output.
-                </div>
+                <div className="pip-muted">No logs available. Check DATA tab for system output.</div>
               )}
             </div>
           )}
