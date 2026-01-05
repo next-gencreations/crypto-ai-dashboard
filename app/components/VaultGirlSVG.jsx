@@ -2,12 +2,6 @@
 
 import React, { useMemo } from "react";
 
-/**
- * More “Vault Girl” full-body style:
- * - Curvier silhouette, hair + goggles
- * - Thumbs-up pose (left), hand-on-hip (right)
- * - Keeps your FX: cracks/flicker, scanline, win/loss pulse/shake
- */
 export default function VaultGirlSVG({
   mood,
   stage = "cryo",
@@ -37,39 +31,39 @@ export default function VaultGirlSVG({
     return "neutral";
   }, [mood, isCryo, pnl, damage]);
 
-  // Expressions (simple but readable)
   const mouthPath =
     derivedMood === "happy"
-      ? "M 168 148 C 176 158 192 158 200 148"
+      ? "M 168 152 C 176 162 192 162 200 152"
       : derivedMood === "sad" || derivedMood === "hurt"
-      ? "M 168 156 C 176 146 192 146 200 156"
+      ? "M 168 160 C 176 150 192 150 200 160"
       : derivedMood === "angry"
-      ? "M 170 154 L 198 154"
-      : "M 168 154 C 176 157 192 157 200 154";
+      ? "M 170 158 L 198 158"
+      : "M 168 158 C 176 161 192 161 200 158";
 
   const browLeft =
     derivedMood === "angry"
-      ? "M 154 128 L 171 121"
+      ? "M 154 132 L 171 125"
       : derivedMood === "sad"
-      ? "M 154 122 L 171 128"
+      ? "M 154 126 L 171 132"
       : derivedMood === "hurt"
-      ? "M 154 126 L 171 124"
-      : "M 154 126 L 171 126";
+      ? "M 154 130 L 171 128"
+      : "M 154 130 L 171 130";
 
   const browRight =
     derivedMood === "angry"
-      ? "M 189 121 L 206 128"
+      ? "M 189 125 L 206 132"
       : derivedMood === "sad"
-      ? "M 189 128 L 206 122"
+      ? "M 189 132 L 206 126"
       : derivedMood === "hurt"
-      ? "M 189 124 L 206 126"
-      : "M 189 126 L 206 126";
+      ? "M 189 128 L 206 130"
+      : "M 189 130 L 206 130";
 
   const glassOpacity = isCryo ? 0.22 : 0.0;
   const frostOpacity = isCryo ? 0.18 : 0.0;
 
   const crackOpacity = Math.min(0.75, Math.max(0, damage * 1.25));
   const glowDim = 0.30 + (1 - damage) * 0.70;
+
   const shakeOnLoss = pnl < -0.01 ? 1 : 0;
   const pulseOnWin = pnl > 0.01 ? 1 : 0;
 
@@ -79,10 +73,7 @@ export default function VaultGirlSVG({
   const uid = useMemo(() => `vg_${Math.random().toString(16).slice(2)}`, []);
 
   return (
-    <div
-      className={className}
-      style={{ width: "100%", maxWidth: 520, margin: "0 auto", ...style }}
-    >
+    <div className={className} style={{ width: "100%", maxWidth: 520, margin: "0 auto", ...style }}>
       <svg viewBox="0 0 360 640" width="100%" height="auto" role="img" aria-label="Vault Girl">
         <defs>
           <filter id={`${uid}_softGlow`} x="-30%" y="-30%" width="160%" height="160%">
@@ -134,7 +125,6 @@ export default function VaultGirlSVG({
           `}</style>
         </defs>
 
-        {/* Whole scene motion */}
         <g
           style={{
             transformOrigin: "180px 320px",
@@ -191,11 +181,7 @@ export default function VaultGirlSVG({
             <path d="M 98 110 L 122 132 L 110 156 L 132 175" opacity={0.9} />
             <path d="M 122 132 L 146 124" opacity={0.7} />
             <path d="M 110 156 L 92 176" opacity={0.6} />
-
             <path d="M 258 260 L 234 282 L 246 310 L 224 338" opacity={0.85} />
-            <path d="M 234 282 L 214 268" opacity={0.6} />
-            <path d="M 246 310 L 266 334" opacity={0.55} />
-
             <path d="M 120 420 L 154 440 L 132 472 L 168 490" opacity={0.75} />
           </g>
 
@@ -206,7 +192,7 @@ export default function VaultGirlSVG({
             </g>
           )}
 
-          {/* === NEW VAULT GIRL DRAWING (more like your reference) === */}
+          {/* Vault Girl – clearly feminine silhouette */}
           <g
             filter={`url(#${uid}_softGlow)`}
             stroke="currentColor"
@@ -214,69 +200,55 @@ export default function VaultGirlSVG({
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{
-              transformOrigin: "180px 360px",
-              transform: `rotate(${bodyTilt}deg)`,
-            }}
+            style={{ transformOrigin: "180px 360px", transform: `rotate(${bodyTilt}deg)` }}
           >
-            {/* Hair silhouette (long swoop) */}
-            <path d="M 118 150
-                     C 110 105 145 78 180 80
-                     C 225 82 252 112 244 154
-                     C 238 190 216 206 206 214
-                     C 230 210 250 198 258 182
-                     C 254 240 202 238 178 226
-                     C 154 238 106 228 104 184
-                     C 114 200 134 210 150 212
-                     C 132 200 122 188 118 150" />
+            {/* Hair (NOT a hood): side-swept + ends */}
+            <path d="M 122 150 C 120 110 146 86 180 86 C 214 86 240 110 238 150" />
+            <path d="M 122 150 C 126 188 150 206 166 214" />
+            <path d="M 238 150 C 234 188 210 206 194 214" />
+            <path d="M 150 214 C 140 226 132 232 126 238" />
+            <path d="M 210 214 C 220 226 228 232 234 238" />
 
-            {/* Head (slightly oval) */}
-            <path d="M 136 130
-                     C 138 105 158 90 180 90
-                     C 202 90 222 105 224 130
-                     C 226 158 208 178 180 178
-                     C 152 178 134 158 136 130" />
+            {/* Head */}
+            <path d="M 140 132 C 142 108 160 94 180 94 C 200 94 218 108 220 132 C 222 156 206 174 180 174 C 154 174 138 156 140 132" />
 
-            {/* Goggles on head */}
-            <path d="M 145 98 C 156 88 170 86 180 90 C 190 86 204 88 215 98" strokeWidth="8" />
-            <rect x="146" y="92" width="44" height="26" rx="10" />
-            <rect x="190" y="92" width="44" height="26" rx="10" />
-            <path d="M 190 105 L 190 105" />
-            <path d="M 190 105 L 190 105" />
-            <path d="M 190 105 L 190 105" />
-            <path d="M 190 105 L 190 105" />
+            {/* Goggles */}
+            <path d="M 146 104 C 158 94 170 92 180 96 C 190 92 202 94 214 104" strokeWidth="8" />
+            <rect x="148" y="98" width="40" height="24" rx="10" />
+            <rect x="192" y="98" width="40" height="24" rx="10" />
+            <path d="M 188 110 L 192 110" />
 
             {/* Face */}
-            <circle cx="166" cy="134" r="4" />
-            <circle cx="198" cy="134" r="4" />
+            <circle cx="166" cy="136" r="4" />
+            <circle cx="198" cy="136" r="4" />
             <path d={browLeft} strokeWidth="6" />
             <path d={browRight} strokeWidth="6" />
-            <path d="M 184 138 L 178 148" strokeWidth="6" opacity="0.9" />
+            <path d="M 184 140 L 178 150" strokeWidth="6" opacity="0.9" />
             <path d={mouthPath} strokeWidth="6" />
 
             {/* Neck */}
-            <path d="M 168 178 L 168 194" strokeWidth="7" />
-            <path d="M 192 178 L 192 194" strokeWidth="7" />
+            <path d="M 168 174 L 168 194" strokeWidth="7" />
+            <path d="M 192 174 L 192 194" strokeWidth="7" />
 
-            {/* Torso (curvier) */}
-            <path d="M 140 212
-                     C 154 198 206 198 220 212" />
-            <path d="M 140 212
-                     C 116 254 124 320 148 354
-                     C 162 372 198 372 212 354
-                     C 236 320 244 254 220 212" />
+            {/* Suit torso: shoulders → waist → hips (hourglass) */}
+            <path d="M 140 214 C 154 200 206 200 220 214" />
+            <path d="M 140 214
+                     C 126 252 134 300 150 328
+                     C 160 344 172 352 180 352
+                     C 188 352 200 344 210 328
+                     C 226 300 234 252 220 214" />
 
-            {/* Chest curve + center seam */}
-            <path d="M 150 240 C 164 228 176 228 180 236 C 184 228 196 228 210 240" strokeWidth="7" />
-            <path d="M 180 212 L 180 394" strokeWidth="7" opacity="0.95" />
+            {/* Bust curve + zipper */}
+            <path d="M 150 242 C 164 232 176 232 180 240 C 184 232 196 232 210 242" strokeWidth="7" />
+            <path d="M 180 214 L 180 392" strokeWidth="7" opacity="0.95" />
 
             {/* Belt */}
-            <path d="M 148 356 C 165 374 195 374 212 356" />
+            <path d="M 150 352 C 166 370 194 370 210 352" />
 
             {/* Vault number */}
             <text
               x="180"
-              y="342"
+              y="340"
               textAnchor="middle"
               fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
               fontSize="44"
@@ -287,32 +259,31 @@ export default function VaultGirlSVG({
               {String(vaultNumber)}
             </text>
 
-            {/* LEFT ARM (thumbs up) */}
-            <path d="M 150 250 C 118 250 98 238 86 220" />
-            <path d="M 86 220 C 78 208 78 198 86 192" />
-            {/* thumb + fist */}
-            <path d="M 86 192 C 92 176 104 176 106 190" strokeWidth="8" />
-            <path d="M 106 190 C 118 198 118 214 108 222" strokeWidth="8" />
-            <path d="M 108 222 C 100 228 92 228 86 220" strokeWidth="8" />
+            {/* LEFT arm: thumbs-up (clear hand) */}
+            <path d="M 152 252 C 118 252 98 240 86 222" />
+            <path d="M 86 222 C 78 210 80 198 92 192" />
+            <path d="M 92 192 C 96 176 110 176 112 190" strokeWidth="8" />
+            <path d="M 112 190 C 124 198 124 214 114 222" strokeWidth="8" />
+            <path d="M 114 222 C 104 230 94 230 86 222" strokeWidth="8" />
 
-            {/* RIGHT ARM (hand on hip) */}
-            <path d="M 210 252 C 238 264 244 296 228 318" />
-            <path d="M 228 318 C 220 330 210 338 198 342" strokeWidth="8" />
-            <path d="M 198 342 C 210 348 222 346 230 336" strokeWidth="8" />
+            {/* RIGHT arm: hand on hip */}
+            <path d="M 208 254 C 234 270 238 300 224 320" />
+            <path d="M 224 320 C 214 336 202 344 190 348" strokeWidth="8" />
+            <path d="M 190 348 C 204 354 220 350 230 336" strokeWidth="8" />
 
-            {/* Hips + legs (curvy stance) */}
-            <path d="M 154 360 C 146 410 148 448 160 488" />
-            <path d="M 206 360 C 216 410 214 448 202 488" />
+            {/* Hips + legs: thicker + feminine stance */}
+            <path d="M 152 358 C 142 404 146 452 162 492" />
+            <path d="M 208 358 C 218 404 214 452 198 492" />
 
-            <path d="M 160 488 C 146 530 150 560 160 586" />
-            <path d="M 202 488 C 216 530 212 560 202 586" />
+            <path d="M 162 492 C 148 530 152 562 164 588" />
+            <path d="M 198 492 C 212 530 208 562 196 588" />
 
             {/* Feet */}
-            <path d="M 146 590 C 160 604 182 604 196 590" strokeWidth="9" />
-            <path d="M 186 590 C 202 604 224 604 238 590" strokeWidth="9" />
+            <path d="M 150 590 C 164 604 186 604 200 590" strokeWidth="9" />
+            <path d="M 184 590 C 200 604 222 604 236 590" strokeWidth="9" />
           </g>
 
-          {/* Damage marks on suit */}
+          {/* Damage marks */}
           {damage > 0.35 && (
             <g stroke="currentColor" strokeWidth="6" fill="none" opacity={Math.min(0.7, damage)}>
               <path d="M 150 305 L 162 292" />
@@ -321,18 +292,9 @@ export default function VaultGirlSVG({
             </g>
           )}
 
-          {/* Debug */}
           {showDebugTag && (
-            <text
-              x="180"
-              y="610"
-              textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
-              fontSize="18"
-              fill="currentColor"
-              opacity="0.65"
-            >
-              VG_CARTOON_V4 • mood:{derivedMood} • stage:{stage} • hp:{h} • pos:{openPositions} • pnl:{pnl}
+            <text x="180" y="610" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="18" fill="currentColor" opacity="0.65">
+              VG_CARTOON_V5 • mood:{derivedMood} • stage:{stage} • hp:{h} • pos:{openPositions} • pnl:{pnl}
             </text>
           )}
         </g>
