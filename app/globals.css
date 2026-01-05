@@ -1,236 +1,239 @@
-/* app/globals.css */
-
 :root {
   --pip: #77ff9a;
-  --pip-dim: rgba(119, 255, 154, 0.22);
-  --pip-dimmer: rgba(119, 255, 154, 0.12);
-  --bg: #050a07;
-  --panel: rgba(0, 0, 0, 0.35);
-  --panel-2: rgba(0, 0, 0, 0.25);
+  --pip2: rgba(119,255,154,0.55);
+  --glass: rgba(0,0,0,0.35);
+  --panel: rgba(0,0,0,0.22);
+  --stroke: rgba(119,255,154,0.22);
+  --stroke2: rgba(119,255,154,0.14);
+  --shadow: 0 0 24px rgba(119,255,154,0.12);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
 body {
-  padding: 0;
-  margin: 0;
-  background: radial-gradient(1200px 900px at 50% 10%, #0b2a15 0%, var(--bg) 55%, #030504 100%);
+  background: radial-gradient(ellipse at top, rgba(119,255,154,0.12), rgba(0,0,0,0.95));
   color: var(--pip);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.wrap {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
+/* CRT shell */
 .pip-crt {
   min-height: 100vh;
-  padding: 18px 12px 28px;
+  padding: 18px 12px 40px;
+  display: flex;
+  justify-content: center;
 }
 
 .pip-shell {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid var(--pip-dim);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.2) 100%);
-  box-shadow: 0 0 0 1px rgba(119, 255, 154, 0.06) inset;
+  width: min(980px, 100%);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35));
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
+/* Topbar */
 .pip-topbar {
   display: flex;
+  gap: 12px;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--stroke2);
 }
 
 .pip-title {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  font-weight: 800;
 }
 
 .pip-sub {
   margin-top: 6px;
+  opacity: 0.7;
   font-size: 12px;
-  opacity: 0.8;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .pip-badge {
   font-size: 12px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--pip-dim);
-  background: rgba(0, 0, 0, 0.25);
-  opacity: 0.9;
-  white-space: nowrap;
+  opacity: 0.85;
+  padding: 6px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.25);
 }
 
+/* Links / tabs */
 .pip-links {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin: 10px 0;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--stroke2);
 }
 
 .pip-link {
   appearance: none;
-  border: 1px solid var(--pip-dim);
-  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,0.25);
   color: var(--pip);
+  text-decoration: none;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: 999px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 14px;
   cursor: pointer;
 }
 
 .pip-link.active {
-  background: rgba(119, 255, 154, 0.12);
-  box-shadow: 0 0 0 1px rgba(119, 255, 154, 0.08) inset;
+  background: rgba(119,255,154,0.10);
+  box-shadow: 0 0 12px rgba(119,255,154,0.15);
 }
 
 .pip-content {
-  margin-top: 10px;
+  padding: 14px;
 }
 
+/* Panels */
 .pip-panel {
-  border: 1px solid var(--pip-dim);
-  background: var(--panel);
-  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,0.24);
+  border-radius: 16px;
   padding: 14px;
-  box-shadow: 0 0 0 1px rgba(119, 255, 154, 0.06) inset;
 }
 
 .pip-heading {
-  font-size: 22px;
   font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  letter-spacing: 0.14em;
+  margin-bottom: 10px;
+  opacity: 0.95;
 }
 
+/* Rows / keys */
 .pip-row {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   padding: 10px 0;
+  border-bottom: 1px solid rgba(119,255,154,0.10);
+}
+
+.pip-row:last-child { border-bottom: none; }
+
+.pip-row-tight {
+  padding: 12px 0;
 }
 
 .pip-k {
-  opacity: 0.75;
+  opacity: 0.7;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
   font-size: 12px;
 }
 
 .pip-v {
+  font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
-.pip-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.pip-muted {
-  opacity: 0.75;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  line-height: 1.4;
-}
-
-/* code blocks */
-.pip-code {
-  margin: 0;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(119, 255, 154, 0.18);
-  background: rgba(0, 0, 0, 0.28);
-  overflow: auto;
-  max-height: 60vh;
-  font-size: 12px;
-}
-
-/* ===== Vault Companion (STACKED LAYOUT) ===== */
-
-.pip-companion-stack {
-  margin-top: 10px;
-}
-
-/* The big box that holds the SVG */
-.pip-petbox {
-  width: 100%;
-  max-width: 420px;
-  height: 420px;
-  margin: 0 auto;
-  border-radius: 18px;
-  border: 1px solid rgba(119, 255, 154, 0.25);
-  background: rgba(0, 0, 0, 0.22);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 0 1px rgba(119, 255, 154, 0.06) inset;
-}
-
-.pip-underlabel {
-  text-align: center;
-  margin-top: 10px;
-  padding: 6px 0 2px;
-}
-
-.pip-underlabel-title {
-  font-weight: 1000;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.pip-v-big {
   font-size: 16px;
+  opacity: 0.95;
 }
 
-.pip-underlabel-sub {
-  opacity: 0.85;
-  letter-spacing: 0.10em;
-  font-size: 12px;
-  margin-top: 6px;
-  text-transform: lowercase;
-}
-
-/* Stats grid under the character */
-.pip-stats-grid {
-  margin-top: 12px;
+/* grids */
+.pip-grid-2 {
   display: grid;
   grid-template-columns: 1fr;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+@media (min-width: 720px) {
+  .pip-grid-2 {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .pip-row {
+    border-bottom: none;
+    padding: 8px 10px;
+    border: 1px solid rgba(119,255,154,0.10);
+    border-radius: 14px;
+    background: rgba(0,0,0,0.18);
+  }
+}
+
+/* Vault pet box */
+.pip-petbox {
+  width: min(520px, 100%);
+  margin: 8px auto 0;
+  border: 1px solid rgba(119,255,154,0.18);
+  border-radius: 18px;
+  background: rgba(0,0,0,0.18);
+  padding: 10px;
+  overflow: hidden;
+}
+
+/* Under-pet text */
+.pip-underpet {
+  text-align: left;
+  margin: 12px auto 0;
+  width: min(520px, 100%);
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(119,255,154,0.12);
+}
+
+.pip-underpet-name {
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  font-size: 18px;
+}
+
+.pip-underpet-sub {
+  margin-top: 6px;
+  opacity: 0.75;
+  letter-spacing: 0.1em;
+}
+
+/* Stats grid under */
+.pip-statgrid {
+  width: min(520px, 100%);
+  margin: 12px auto 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 560px) {
+  .pip-statgrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pip-statcard {
+  border: 1px solid rgba(119,255,154,0.14);
+  background: rgba(0,0,0,0.18);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 12px;
 }
 
-/* Make System Status grid single column on smaller screens */
-@media (max-width: 700px) {
-  .pip-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* Misc */
+.wrap { word-break: break-word; overflow-wrap: anywhere; }
+.pip-muted { opacity: 0.75; font-size: 12px; letter-spacing: 0.08em; }
+.pip-footnote { margin-top: 12px; padding-top: 10px; }
 
-/* On wider screens, show the 4 stats as 2 columns */
-@media (min-width: 800px) {
-  .pip-stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+.pip-code {
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(119,255,154,0.12);
+  border-radius: 14px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 55vh;
 }
