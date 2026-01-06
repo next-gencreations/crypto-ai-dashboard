@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const REFRESH_MS = 5000;
+const FETCH_TIMEOUT_MS = 20000;
 
 function normalizeCandles(raw) {
   const arr = Array.isArray(raw) ? raw : [];
@@ -31,7 +32,6 @@ function CandleChart({ candles, height = 360 }) {
   const [w, setW] = useState(520);
   const h = height;
 
-  // Responsive width (mobile friendly) using ResizeObserver when available
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -57,7 +57,6 @@ function CandleChart({ candles, height = 360 }) {
     };
   }, []);
 
-  // show more history
   const data = (candles || []).slice(-200);
 
   if (data.length < 2) {
@@ -73,7 +72,6 @@ function CandleChart({ candles, height = 360 }) {
   const maxY0 = Math.max(...highs);
   const minY0 = Math.min(...lows);
 
-  // Better auto-scale (prevents “zoomed” / weird ranges)
   const range = maxY0 - minY0;
   const pad = Math.max(range * 0.08, maxY0 * 0.0005, 0.5);
   const yMax = maxY0 + pad;
@@ -87,16 +85,13 @@ function CandleChart({ candles, height = 360 }) {
 
   const innerW = w - 24;
   const step = innerW / data.length;
-
-  // thin bodies, but always visible
   const bw = Math.max(2, Math.min(6, step * 0.55));
 
   return (
     <div ref={containerRef} style={{ width: "100%" }}>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-        {/* grid */}
-        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="var(--pip-grid-1, rgba(119,255,154,0.18))" />
-        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="var(--pip-grid-2, rgba(119,255,154,0.10))" />
+        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="rgba(119,255,154,0.18)" />
+        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="rgba(119,255,154,0.10)" />
 
         {data.map((c, i) => {
           const xCenter = 12 + i * step + step / 2;
@@ -108,26 +103,16 @@ function CandleChart({ candles, height = 360 }) {
 
           const up = c.c >= c.o;
 
-          // ✅ Strong red/green with CSS var fallbacks
-          const stroke = up
-            ? "var(--pip-up, rgba(0,255,160,0.95))"
-            : "var(--pip-down, rgba(255,80,80,0.95))";
-
-          const fill = up
-            ? "var(--pip-up-fill, rgba(0,255,160,0.22))"
-            : "var(--pip-down-fill, rgba(255,80,80,0.22))";
+          const stroke = up ? "rgba(0,255,160,0.95)" : "rgba(255,80,80,0.95)";
+          const fill = up ? "rgba(0,255,160,0.22)" : "rgba(255,80,80,0.22)";
 
           const bodyTop = Math.min(yO, yC);
           const bodyBot = Math.max(yO, yC);
-
-          // ✅ Minimum body height so “flat” candles are still visible
           const bodyH = Math.max(6, bodyBot - bodyTop);
 
           return (
             <g key={`${c.t}-${i}`}>
-              {/* wick */}
               <line x1={xCenter} y1={yH} x2={xCenter} y2={yL} stroke={stroke} strokeWidth="1.4" />
-              {/* body */}
               <rect
                 x={xCenter - bw / 2}
                 y={bodyTop}
@@ -160,8 +145,29 @@ function safeMarketsList(m) {
   }
 }
 
+async function fetchJson(url, signal) {
+  const res = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+    signal,
+    headers: { accept: "application/json" },
+  });
+
+  const txt = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
+  }
+
+  try {
+    return txt ? JSON.parse(txt) : null;
+  } catch {
+    throw new Error(`API returned non-JSON: ${txt.slice(0, 180)}`);
+  }
+}
+
 export default function CandlesPage() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
+  // display-only
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
   const [err, setErr] = useState("");
   const [lastFetchAt, setLastFetchAt] = useState(null);
@@ -183,21 +189,15 @@ export default function CandlesPage() {
       ? "1H"
       : `${Math.floor(intervalSec / 60)}M`;
 
-  async function fetchJson(url, signal) {
-    const res = await fetch(url, { cache: "no-store", signal });
-    if (!res.ok) throw new Error(`API responded ${res.status}`);
-    return res.json();
-  }
-
   async function fetchAll(signal) {
-    if (!apiBase) {
-      setErr("Missing NEXT_PUBLIC_API_URL in Vercel environment variables.");
-      return;
-    }
+    // ✅ Use SAME-ORIGIN proxy (like Home)
+    const dataUrl = `/api/proxy/data`;
+    const ohlcUrl = `/api/proxy/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=600`;
+
     try {
       setErr("");
 
-      const data = await fetchJson(`${apiBase}/data`, signal);
+      const data = await fetchJson(dataUrl, signal);
       const hbMarkets = safeMarketsList(data?.heartbeat?.markets);
 
       if (hbMarkets.length) {
@@ -205,12 +205,9 @@ export default function CandlesPage() {
         if (!hbMarkets.includes(market)) setMarket(hbMarkets[0]);
       }
 
-      const o = await fetchJson(
-        `${apiBase}/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=600`,
-        signal
-      );
-
+      const o = await fetchJson(ohlcUrl, signal);
       setOhlc(normalizeCandles(o?.candles || o || []));
+
       setLastFetchAt(new Date());
     } catch (e) {
       if (e?.name === "AbortError") return;
@@ -225,7 +222,7 @@ export default function CandlesPage() {
     const t = setInterval(() => {
       const ac2 = new AbortController();
       fetchAll(ac2.signal);
-      setTimeout(() => ac2.abort(), 8000);
+      setTimeout(() => ac2.abort(), FETCH_TIMEOUT_MS);
     }, REFRESH_MS);
 
     return () => {
@@ -233,7 +230,7 @@ export default function CandlesPage() {
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase, market, intervalSec]);
+  }, [market, intervalSec]);
 
   const title = useMemo(() => `PRICE CANDLES (${market}) · ${tfLabel}`, [market, tfLabel]);
 
@@ -270,9 +267,20 @@ export default function CandlesPage() {
             <div className="pip-heading">{title}</div>
 
             <div className="pip-row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div className="pip-row" style={{ gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <div className="pip-k">Market</div>
-                <select className="pip-tab" value={market} onChange={(e) => setMarket(e.target.value)}>
+                <select
+                  value={market}
+                  onChange={(e) => setMarket(e.target.value)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(120,255,170,0.25)",
+                    background: "rgba(0,0,0,0.35)",
+                    color: "rgba(180,255,210,0.95)",
+                    outline: "none",
+                  }}
+                >
                   {markets.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -281,15 +289,15 @@ export default function CandlesPage() {
                 </select>
               </div>
 
-              <div className="pip-row" style={{ gap: 8, flexWrap: "wrap" }}>
-                <button className={`pip-tab ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)}>1M</button>
-                <button className={`pip-tab ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)}>5M</button>
-                <button className={`pip-tab ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)}>15M</button>
-                <button className={`pip-tab ${intervalSec === 3600 ? "active" : ""}`} onClick={() => setIntervalSec(3600)}>1H</button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className={`pip-link ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)}>1M</button>
+                <button className={`pip-link ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)}>5M</button>
+                <button className={`pip-link ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)}>15M</button>
+                <button className={`pip-link ${intervalSec === 3600 ? "active" : ""}`} onClick={() => setIntervalSec(3600)}>1H</button>
               </div>
             </div>
 
-            <div className="pip-chartwrap">
+            <div style={{ marginTop: 12 }}>
               <CandleChart candles={ohlc} />
             </div>
 
