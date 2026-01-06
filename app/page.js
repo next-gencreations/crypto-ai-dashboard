@@ -35,11 +35,33 @@ async function fetchJson(url, signal) {
     throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
   }
 
-  // Some endpoints may return text/json; parse safely
   try {
     return txt ? JSON.parse(txt) : null;
   } catch {
-    // If it wasn’t valid JSON, still show something useful
+    throw new Error(`API returned non-JSON: ${txt.slice(0, 180)}`);
+  }
+}
+
+async function postJson(url, body, signal) {
+  const res = await fetch(url, {
+    method: "POST",
+    cache: "no-store",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const txt = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
+  }
+
+  try {
+    return txt ? JSON.parse(txt) : null;
+  } catch {
     throw new Error(`API returned non-JSON: ${txt.slice(0, 180)}`);
   }
 }
@@ -70,7 +92,7 @@ function pickLastTradePnl(data) {
 }
 
 export default function HomePage() {
-  // IMPORTANT: This is only for display now (proxy handles the actual call)
+  // display-only (proxy handles actual upstream)
   const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
   const [tab, setTab] = useState("status");
@@ -98,8 +120,16 @@ export default function HomePage() {
   const [logLines, setLogLines] = useState([]);
   const [lastPnl, setLastPnl] = useState(0);
 
+  // ✅ NEW: Bankroll settings UI state
+  const [bankrollGbp, setBankrollGbp] = useState(null); // number
+  const [bankrollUsd, setBankrollUsd] = useState(null); // number
+  const [gbpusdRate, setGbpusdRate] = useState(null);   // number
+
+  const [bankrollInput, setBankrollInput] = useState(""); // string
+  const [savingBankroll, setSavingBankroll] = useState(false);
+  const [bankrollMsg, setBankrollMsg] = useState("");
+
   async function fetchAll(signal) {
-    // Use SAME-ORIGIN proxy to avoid CORS completely
     const dataUrl = `/api/proxy/data`;
     const healthUrl = `/api/proxy/health`;
     const logsUrl = `/api/proxy/logs?limit=120`;
@@ -147,6 +177,24 @@ export default function HomePage() {
         updated: String(pet?.time_utc || hbTime || "—"),
       });
 
+      // ✅ NEW: pull settings from /data (fastest)
+      const s = data?.settings || null;
+      if (s) {
+        const gbp = Number(s?.bankroll_gbp);
+        const usd = Number(s?.bankroll_usd);
+        const rate = Number(s?.gbpusd_rate);
+
+        if (Number.isFinite(gbp)) setBankrollGbp(gbp);
+        if (Number.isFinite(usd)) setBankrollUsd(usd);
+        if (Number.isFinite(rate)) setGbpusdRate(rate);
+
+        // Only auto-fill input if user hasn't started typing
+        setBankrollInput((prev) => {
+          if (prev && prev.trim().length) return prev;
+          return Number.isFinite(gbp) ? String(gbp) : "";
+        });
+      }
+
       try {
         const logs = await fetchJson(logsUrl, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || [];
@@ -159,7 +207,6 @@ export default function HomePage() {
     } catch (e) {
       if (e?.name === "AbortError") return;
 
-      // Try /health via proxy for better error message
       try {
         await fetchJson(healthUrl, signal);
         setErr(`API reachable, but /data failed: ${String(e?.message || e)}`);
@@ -173,6 +220,50 @@ export default function HomePage() {
       setEquity(0);
       setHeartbeat("—");
       setLastPnl(0);
+    }
+  }
+
+  async function saveBankroll() {
+    const val = Number(bankrollInput);
+    if (!Number.isFinite(val) || val < 0) {
+      setBankrollMsg("Enter a valid bankroll amount (0 or more).");
+      return;
+    }
+
+    setSavingBankroll(true);
+    setBankrollMsg("");
+
+    const ac = new AbortController();
+    const timeout = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      // POST to backend via proxy
+      const out = await postJson(`/api/proxy/settings`, { bankroll_gbp: val }, ac.signal);
+
+      // backend returns { ok: true, bankroll_gbp, gbpusd_rate, bankroll_usd }
+      const gbp = Number(out?.bankroll_gbp);
+      const usd = Number(out?.bankroll_usd);
+      const rate = Number(out?.gbpusd_rate);
+
+      if (Number.isFinite(gbp)) setBankrollGbp(gbp);
+      if (Number.isFinite(usd)) setBankrollUsd(usd);
+      if (Number.isFinite(rate)) setGbpusdRate(rate);
+
+      setBankrollInput(String(Number.isFinite(gbp) ? gbp : val));
+      setBankrollMsg("Saved ✅");
+
+      // refresh /data so RAW DATA and UI stay in sync
+      const ac2 = new AbortController();
+      fetchAll(ac2.signal);
+    } catch (e) {
+      setBankrollMsg(`Save failed: ${String(e?.message || e)}`);
+    } finally {
+      clearTimeout(timeout);
+      setSavingBankroll(false);
+      // clear success msg after a bit (but keep errors)
+      setTimeout(() => {
+        setBankrollMsg((m) => (m === "Saved ✅" ? "" : m));
+      }, 2200);
     }
   }
 
@@ -190,7 +281,6 @@ export default function HomePage() {
       ac.abort();
       clearInterval(t);
     };
-    // apiBase is only for display; proxy route uses env server-side
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -276,6 +366,57 @@ export default function HomePage() {
                       <div className="pip-k">EQUITY</div>
                       <div className="pip-v">${Number(equity).toFixed(2)}</div>
                     </div>
+                  </div>
+                </div>
+
+                {/* ✅ NEW: Bankroll control panel */}
+                <div style={{ marginTop: 14 }}>
+                  <div className="pip-heading">BANKROLL CONTROL</div>
+
+                  <div className="pip-row" style={{ alignItems: "center", gap: 10 }}>
+                    <div className="pip-k" style={{ minWidth: 120 }}>BANKROLL (GBP)</div>
+
+                    <input
+                      value={bankrollInput}
+                      onChange={(e) => setBankrollInput(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="e.g. 100"
+                      style={{
+                        flex: 1,
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(120,255,170,0.25)",
+                        background: "rgba(0,0,0,0.35)",
+                        color: "rgba(180,255,210,0.95)",
+                        outline: "none",
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      className="pip-link"
+                      onClick={saveBankroll}
+                      disabled={savingBankroll}
+                      style={{ opacity: savingBankroll ? 0.6 : 1 }}
+                    >
+                      {savingBankroll ? "SAVING..." : "SAVE"}
+                    </button>
+                  </div>
+
+                  <div className="pip-muted" style={{ marginTop: 8 }}>
+                    Current: £{Number.isFinite(bankrollGbp) ? bankrollGbp.toFixed(2) : "—"}{" "}
+                    {Number.isFinite(bankrollUsd) ? `(≈ $${bankrollUsd.toFixed(2)})` : ""}
+                    {Number.isFinite(gbpusdRate) ? ` • Rate: ${gbpusdRate.toFixed(4)}` : ""}
+                  </div>
+
+                  {!!bankrollMsg && (
+                    <div className="pip-muted" style={{ marginTop: 8 }}>
+                      {bankrollMsg}
+                    </div>
+                  )}
+
+                  <div className="pip-muted pip-footnote" style={{ marginTop: 8 }}>
+                    This sets the bankroll used by the bot for sizing/risk limits (backend stores it).
                   </div>
                 </div>
               </div>
