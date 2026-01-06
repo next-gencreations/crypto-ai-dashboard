@@ -32,7 +32,9 @@ async function fetchJson(url, signal) {
 
   const txt = await res.text().catch(() => "");
   if (!res.ok) {
-    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
+    throw new Error(
+      `API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`
+    );
   }
 
   try {
@@ -56,7 +58,9 @@ async function postJson(url, body, signal) {
 
   const txt = await res.text().catch(() => "");
   if (!res.ok) {
-    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
+    throw new Error(
+      `API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`
+    );
   }
 
   try {
@@ -340,13 +344,25 @@ export default function HomePage() {
         </div>
 
         <div className="pip-links">
-          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
+          <button
+            className={`pip-link ${tab === "status" ? "active" : ""}`}
+            onClick={() => setTab("status")}
+            type="button"
+          >
             STATUS
           </button>
-          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
+          <button
+            className={`pip-link ${tab === "data" ? "active" : ""}`}
+            onClick={() => setTab("data")}
+            type="button"
+          >
             DATA
           </button>
-          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
+          <button
+            className={`pip-link ${tab === "log" ? "active" : ""}`}
+            onClick={() => setTab("log")}
+            type="button"
+          >
             LOG
           </button>
         </div>
@@ -469,7 +485,8 @@ export default function HomePage() {
                   <div className="pip-petmeta">
                     <div className="pip-petname">{String(companion.name || "VAULT GIRL")}</div>
                     <div className="pip-petmini">
-                      stage: {String(companion.stage || "cryo")} • mood: {String(companion.mood || "cryo")}
+                      stage: {String(companion.stage || "cryo")} • mood:{" "}
+                      {String(companion.mood || "cryo")}
                     </div>
                     <div className="pip-muted" style={{ marginTop: 6 }}>
                       {isTrading ? "TRADING: ACTIVE" : "TRADING: IDLE"}
@@ -526,4 +543,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-    }
+}
