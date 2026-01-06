@@ -274,3 +274,18 @@ html, body {
   .pip-petbox{ height: 520px; }
   .pip-stats{ grid-template-columns: 1fr 1fr; }
 }
+:root{
+  --pip-up: rgba(0,255,160,0.95);
+  --pip-down: rgba(255,80,80,0.95);
+  --pip-up-fill: rgba(0,255,160,0.22);
+  --pip-down-fill: rgba(255,80,80,0.22);
+}
+
+.pip-petbox{
+  display: grid;
+  place-items: center;
+}
+.pip-petbox svg{
+  max-width: 100%;
+  height: auto;
+}
