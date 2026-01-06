@@ -153,27 +153,7 @@ html, body {
   gap: 14px;
 }
 
-/* ===== BANKROLL INPUT FIX (NEW) ===== */
-.pip-bankroll-row{
-  display: flex !important;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.pip-bankroll-row input,
-.pip-bankroll-row .pip-input{
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.pip-bankroll-row button,
-.pip-bankroll-row .pip-btn{
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-/* ===== Vault Companion ===== */
+/* ===== Vault Companion (NEW) ===== */
 .pip-companion-col{
   display:flex;
   flex-direction:column;
@@ -249,6 +229,43 @@ html, body {
   border-radius: 14px;
   padding: 12px;
   overflow:auto;
+}
+
+/* =========================
+   ✅ FIX: Bankroll row mobile layout
+   ========================= */
+
+/* This prevents the SAVE button being pushed off-screen on narrow phones */
+.pip-bankroll-row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Make label not force everything off-screen */
+.pip-bankroll-row .pip-k{
+  min-width: 120px;
+}
+
+/* Force input to shrink nicely instead of overflowing */
+.pip-bankroll-input{
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+/* Keep button visible; allow wrap under input if needed */
+.pip-bankroll-btn{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Slightly smaller paddings on very small screens */
+@media (max-width: 420px){
+  .pip-link{
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
 }
 
 /* Tablet/desktop tweaks */
