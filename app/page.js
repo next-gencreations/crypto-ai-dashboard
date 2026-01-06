@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import VaultGirlSVG from "./components/VaultGirlSVG";
 
 const REFRESH_MS = 5000;
-const FETCH_TIMEOUT_MS = 20000; // Render can cold-start, give it time
+const FETCH_TIMEOUT_MS = 20000;
 
 function safeMarketsList(m) {
   try {
@@ -27,35 +27,37 @@ async function fetchJson(url, signal) {
     method: "GET",
     cache: "no-store",
     signal,
-    mode: "cors",
+    headers: { accept: "application/json" },
   });
+
+  const txt = await res.text().catch(() => "");
   if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(
-      `API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 140)}` : ""}`
-    );
+    throw new Error(`API ${res.status} ${res.statusText}${txt ? ` — ${txt.slice(0, 180)}` : ""}`);
   }
-  return res.json();
+
+  // Some endpoints may return text/json; parse safely
+  try {
+    return txt ? JSON.parse(txt) : null;
+  } catch {
+    // If it wasn’t valid JSON, still show something useful
+    throw new Error(`API returned non-JSON: ${txt.slice(0, 180)}`);
+  }
 }
 
 function pickLatestEquityUSD(data) {
-  // Prefer heartbeat.equity_usd
   const hbEq = Number(data?.heartbeat?.equity_usd);
   if (Number.isFinite(hbEq)) return hbEq;
 
-  // Fallback: last equity point array
   const arr = data?.equity;
   if (Array.isArray(arr) && arr.length) {
     const last = arr[arr.length - 1];
     const v = Number(last?.equity_usd);
     if (Number.isFinite(v)) return v;
   }
-
   return 0;
 }
 
 function pickLastTradePnl(data) {
-  // Your backend often has an events array; try to find last event with pnl
   const ev = data?.events;
   if (Array.isArray(ev) && ev.length) {
     for (let i = ev.length - 1; i >= 0; i--) {
@@ -63,19 +65,13 @@ function pickLastTradePnl(data) {
       if (Number.isFinite(pnl)) return pnl;
     }
   }
-  // Some schemas put it in stats/last_trade_pnl
   const st = Number(data?.stats?.last_trade_pnl ?? data?.last_trade_pnl);
   return Number.isFinite(st) ? st : 0;
 }
 
 export default function HomePage() {
-  // ✅ Support both env var names (some projects accidentally use different names)
-  // Set ONE of these in Vercel: NEXT_PUBLIC_API_URL (preferred)
-  const apiBase = (
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    ""
-  ).replace(/\/+$/, "");
+  // IMPORTANT: This is only for display now (proxy handles the actual call)
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
   const [tab, setTab] = useState("status");
   const [err, setErr] = useState("");
@@ -103,46 +99,37 @@ export default function HomePage() {
   const [lastPnl, setLastPnl] = useState(0);
 
   async function fetchAll(signal) {
-    if (!apiBase) {
-      setErr("Missing NEXT_PUBLIC_API_URL in Vercel environment variables.");
-      return;
-    }
+    // Use SAME-ORIGIN proxy to avoid CORS completely
+    const dataUrl = `/api/proxy/data`;
+    const healthUrl = `/api/proxy/health`;
+    const logsUrl = `/api/proxy/logs?limit=120`;
 
     try {
       setErr("");
 
-      // ✅ Main payload
-      const data = await fetchJson(`${apiBase}/data`, signal);
+      const data = await fetchJson(dataUrl, signal);
       setRawData(data);
 
-      // ✅ Backend returns state at top level
       const state = String(data?.state || data?.status || "ACTIVE").toUpperCase();
       setBotState(state);
 
-      // ✅ Heartbeat shape
       const hb = data?.heartbeat || {};
       const hbTime = hb?.time_utc || data?.timestamp || "—";
       setHeartbeat(String(hbTime));
 
-      // ✅ markets / positions
-      const mks = safeMarketsList(hb?.markets);
-      setMarkets(mks);
+      setMarkets(safeMarketsList(hb?.markets));
 
       const ops = Number(hb?.open_positions ?? hb?.openPositions ?? 0);
       setOpenPositions(Number.isFinite(ops) ? ops : 0);
 
-      const surv = String(hb?.survival_mode ?? "NORMAL").toUpperCase();
-      setSurvival(surv);
+      setSurvival(String(hb?.survival_mode ?? "NORMAL").toUpperCase());
 
-      // ✅ Equity
       const eq = pickLatestEquityUSD(data);
       setEquity(Number.isFinite(eq) ? eq : 0);
 
-      // ✅ Last trade pnl (for win/loss reaction)
       const lp = pickLastTradePnl(data);
       setLastPnl(Number.isFinite(lp) ? lp : 0);
 
-      // ✅ Pet
       const pet = data?.pet || {};
       const sex = String(pet?.sex || "girl").toLowerCase();
       const defaultName = sex === "boy" ? "VAULT BOY" : "VAULT GIRL";
@@ -160,9 +147,8 @@ export default function HomePage() {
         updated: String(pet?.time_utc || hbTime || "—"),
       });
 
-      // ✅ Logs (optional)
       try {
-        const logs = await fetchJson(`${apiBase}/logs?limit=120`, signal);
+        const logs = await fetchJson(logsUrl, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || [];
         setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
       } catch {
@@ -173,15 +159,14 @@ export default function HomePage() {
     } catch (e) {
       if (e?.name === "AbortError") return;
 
-      // If /data failed, try /health to tell cold-start vs bad URL/CORS
+      // Try /health via proxy for better error message
       try {
-        await fetchJson(`${apiBase}/health`, signal);
+        await fetchJson(healthUrl, signal);
         setErr(`API reachable, but /data failed: ${String(e?.message || e)}`);
-      } catch {
-        setErr(`Failed to fetch from API: ${String(e?.message || e)}`);
+      } catch (e2) {
+        setErr(`Failed to fetch from API: ${String(e?.message || e)} (health also failed)`);
       }
 
-      // Keep UI stable on errors (don’t make Vault Girl look “injured”)
       setBotState("—");
       setOpenPositions(0);
       setSurvival("—");
@@ -205,24 +190,21 @@ export default function HomePage() {
       ac.abort();
       clearInterval(t);
     };
-  }, [apiBase]);
+    // apiBase is only for display; proxy route uses env server-side
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const subtitle = useMemo(() => {
     const last = lastFetchAt ? lastFetchAt.toLocaleTimeString() : "—";
     return `Home · API: ${apiBase || "—"} · Refresh: ${REFRESH_MS / 1000}s · Last: ${last} · State: ${botState}`;
   }, [apiBase, lastFetchAt, botState]);
 
-  // ✅ When API errors, we disable “damage FX” so she doesn’t look cracked/beat-up
   const disableDamageFx = !!err;
-
-  // ✅ Define “trading” indicator
-  // If your backend sets state ACTIVE while it’s running, this is a good proxy
   const isTrading = !err && botState === "ACTIVE";
 
   return (
     <div className="pip-crt">
       <div className="pip-shell">
-        {/* Top Bar */}
         <div className="pip-topbar">
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
@@ -233,39 +215,24 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Main Nav */}
         <div className="pip-links">
           <Link className="pip-link active" href="/">HOME</Link>
           <Link className="pip-link" href="/candles">CANDLES</Link>
           <Link className="pip-link" href="/crypto">CRYPTO</Link>
         </div>
 
-        {/* Sub Nav */}
         <div className="pip-links">
-          <button
-            className={`pip-link ${tab === "status" ? "active" : ""}`}
-            onClick={() => setTab("status")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")} type="button">
             STATUS
           </button>
-          <button
-            className={`pip-link ${tab === "data" ? "active" : ""}`}
-            onClick={() => setTab("data")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")} type="button">
             DATA
           </button>
-          <button
-            className={`pip-link ${tab === "log" ? "active" : ""}`}
-            onClick={() => setTab("log")}
-            type="button"
-          >
+          <button className={`pip-link ${tab === "log" ? "active" : ""}`} onClick={() => setTab("log")} type="button">
             LOG
           </button>
         </div>
 
-        {/* Error */}
         {err && (
           <div className="pip-content">
             <div className="pip-panel">
@@ -275,11 +242,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Content */}
         <div className="pip-content">
           {tab === "status" && (
             <>
-              {/* System Status */}
               <div className="pip-panel">
                 <div className="pip-heading">SYSTEM STATUS</div>
 
@@ -315,7 +280,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Vault Companion */}
               <div className="pip-panel" style={{ marginTop: "14px" }}>
                 <div className="pip-heading">VAULT COMPANION</div>
 
@@ -329,8 +293,7 @@ export default function HomePage() {
                       openPositions={disableDamageFx ? 0 : openPositions}
                       lastPnl={disableDamageFx ? 0 : lastPnl}
                       isTrading={isTrading}
-                      disableDamageFx={disableDamageFx}
-                      showDebugTag={false} // turn on if you want: true
+                      showDebugTag={false}
                     />
                   </div>
 
