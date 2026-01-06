@@ -117,17 +117,38 @@ export default function HomePage() {
   });
 
   const [rawData, setRawData] = useState(null);
+  const [lastGoodRawData, setLastGoodRawData] = useState(null); // ✅ keep last good payload
   const [logLines, setLogLines] = useState([]);
   const [lastPnl, setLastPnl] = useState(0);
 
-  // ✅ NEW: Bankroll settings UI state
-  const [bankrollGbp, setBankrollGbp] = useState(null); // number
-  const [bankrollUsd, setBankrollUsd] = useState(null); // number
-  const [gbpusdRate, setGbpusdRate] = useState(null);   // number
+  // ✅ Bankroll settings UI state
+  const [bankrollGbp, setBankrollGbp] = useState(null);
+  const [bankrollUsd, setBankrollUsd] = useState(null);
+  const [gbpusdRate, setGbpusdRate] = useState(null);
 
-  const [bankrollInput, setBankrollInput] = useState(""); // string
+  const [bankrollInput, setBankrollInput] = useState("");
   const [savingBankroll, setSavingBankroll] = useState(false);
   const [bankrollMsg, setBankrollMsg] = useState("");
+
+  async function fetchSettingsFallback(signal) {
+    try {
+      const out = await fetchJson(`/api/proxy/settings`, signal);
+      const gbp = Number(out?.bankroll_gbp);
+      const usd = Number(out?.bankroll_usd);
+      const rate = Number(out?.gbpusd_rate);
+
+      if (Number.isFinite(gbp)) setBankrollGbp(gbp);
+      if (Number.isFinite(usd)) setBankrollUsd(usd);
+      if (Number.isFinite(rate)) setGbpusdRate(rate);
+
+      setBankrollInput((prev) => {
+        if (prev && prev.trim().length) return prev;
+        return Number.isFinite(gbp) ? String(gbp) : "";
+      });
+    } catch {
+      // ignore
+    }
+  }
 
   async function fetchAll(signal) {
     const dataUrl = `/api/proxy/data`;
@@ -138,7 +159,14 @@ export default function HomePage() {
       setErr("");
 
       const data = await fetchJson(dataUrl, signal);
-      setRawData(data);
+
+      // ✅ don’t overwrite with null; keep last good
+      if (data !== null) {
+        setRawData(data);
+        setLastGoodRawData(data);
+      } else {
+        setRawData(null);
+      }
 
       const state = String(data?.state || data?.status || "ACTIVE").toUpperCase();
       setBotState(state);
@@ -177,7 +205,7 @@ export default function HomePage() {
         updated: String(pet?.time_utc || hbTime || "—"),
       });
 
-      // ✅ NEW: pull settings from /data (fastest)
+      // ✅ Pull settings from /data if present, else fallback to /settings
       const s = data?.settings || null;
       if (s) {
         const gbp = Number(s?.bankroll_gbp);
@@ -188,11 +216,12 @@ export default function HomePage() {
         if (Number.isFinite(usd)) setBankrollUsd(usd);
         if (Number.isFinite(rate)) setGbpusdRate(rate);
 
-        // Only auto-fill input if user hasn't started typing
         setBankrollInput((prev) => {
           if (prev && prev.trim().length) return prev;
           return Number.isFinite(gbp) ? String(gbp) : "";
         });
+      } else {
+        await fetchSettingsFallback(signal);
       }
 
       try {
@@ -210,7 +239,7 @@ export default function HomePage() {
       try {
         await fetchJson(healthUrl, signal);
         setErr(`API reachable, but /data failed: ${String(e?.message || e)}`);
-      } catch (e2) {
+      } catch {
         setErr(`Failed to fetch from API: ${String(e?.message || e)} (health also failed)`);
       }
 
@@ -224,7 +253,10 @@ export default function HomePage() {
   }
 
   async function saveBankroll() {
-    const val = Number(bankrollInput);
+    // allow "£100" or "100.50"
+    const cleaned = String(bankrollInput).replace(/[£,\s]/g, "");
+    const val = Number(cleaned);
+
     if (!Number.isFinite(val) || val < 0) {
       setBankrollMsg("Enter a valid bankroll amount (0 or more).");
       return;
@@ -237,10 +269,8 @@ export default function HomePage() {
     const timeout = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
 
     try {
-      // POST to backend via proxy
       const out = await postJson(`/api/proxy/settings`, { bankroll_gbp: val }, ac.signal);
 
-      // backend returns { ok: true, bankroll_gbp, gbpusd_rate, bankroll_usd }
       const gbp = Number(out?.bankroll_gbp);
       const usd = Number(out?.bankroll_usd);
       const rate = Number(out?.gbpusd_rate);
@@ -252,7 +282,6 @@ export default function HomePage() {
       setBankrollInput(String(Number.isFinite(gbp) ? gbp : val));
       setBankrollMsg("Saved ✅");
 
-      // refresh /data so RAW DATA and UI stay in sync
       const ac2 = new AbortController();
       fetchAll(ac2.signal);
     } catch (e) {
@@ -260,7 +289,6 @@ export default function HomePage() {
     } finally {
       clearTimeout(timeout);
       setSavingBankroll(false);
-      // clear success msg after a bit (but keep errors)
       setTimeout(() => {
         setBankrollMsg((m) => (m === "Saved ✅" ? "" : m));
       }, 2200);
@@ -369,20 +397,20 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* ✅ NEW: Bankroll control panel */}
+                {/* ✅ Bankroll control */}
                 <div style={{ marginTop: 14 }}>
                   <div className="pip-heading">BANKROLL CONTROL</div>
 
-                  <div className="pip-row" style={{ alignItems: "center", gap: 10 }}>
-                    <div className="pip-k" style={{ minWidth: 120 }}>BANKROLL (GBP)</div>
+                  <div className="pip-row pip-bankroll-row" style={{ borderBottom: "none" }}>
+                    <div className="pip-k">BANKROLL (GBP)</div>
 
                     <input
+                      className="pip-bankroll-input"
                       value={bankrollInput}
                       onChange={(e) => setBankrollInput(e.target.value)}
                       inputMode="decimal"
                       placeholder="e.g. 100"
                       style={{
-                        flex: 1,
                         padding: "10px 12px",
                         borderRadius: 12,
                         border: "1px solid rgba(120,255,170,0.25)",
@@ -394,7 +422,7 @@ export default function HomePage() {
 
                     <button
                       type="button"
-                      className="pip-link"
+                      className="pip-link pip-bankroll-btn"
                       onClick={saveBankroll}
                       disabled={savingBankroll}
                       style={{ opacity: savingBankroll ? 0.6 : 1 }}
@@ -478,7 +506,9 @@ export default function HomePage() {
           {tab === "data" && (
             <div className="pip-panel">
               <div className="pip-heading">RAW DATA</div>
-              <pre className="pip-code">{JSON.stringify(rawData, null, 2)}</pre>
+              <pre className="pip-code">
+                {JSON.stringify(rawData ?? lastGoodRawData ?? { note: "No data received yet." }, null, 2)}
+              </pre>
             </div>
           )}
 
@@ -496,4 +526,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
+    }
