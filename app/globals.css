@@ -153,7 +153,27 @@ html, body {
   gap: 14px;
 }
 
-/* ===== Vault Companion (NEW) ===== */
+/* ===== BANKROLL INPUT FIX (NEW) ===== */
+.pip-bankroll-row{
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.pip-bankroll-row input,
+.pip-bankroll-row .pip-input{
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pip-bankroll-row button,
+.pip-bankroll-row .pip-btn{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* ===== Vault Companion ===== */
 .pip-companion-col{
   display:flex;
   flex-direction:column;
