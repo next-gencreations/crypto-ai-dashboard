@@ -51,7 +51,7 @@ export default function VaultGirlSVG({
   const accentFill =
     PNL < 0 ? "var(--pip-down-fill, rgba(255,80,80,0.18))" : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  // ✅ your file is: /public/vaultgirl.png
+  // ✅ Must be exactly this for /public/vaultgirl.png
   const IMG_SRC = "/vaultgirl.png";
 
   return (
@@ -120,8 +120,26 @@ export default function VaultGirlSVG({
 
         {/* Frame */}
         <g filter="url(#pipGlow)">
-          <rect x="26" y="26" width="468" height="468" rx="28" fill="rgba(0,0,0,0.22)" stroke="rgba(120,255,170,0.30)" strokeWidth="2" />
-          <rect x="46" y="46" width="428" height="428" rx="24" fill="rgba(0,0,0,0.16)" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
+          <rect
+            x="26"
+            y="26"
+            width="468"
+            height="468"
+            rx="28"
+            fill="rgba(0,0,0,0.22)"
+            stroke="rgba(120,255,170,0.30)"
+            strokeWidth="2"
+          />
+          <rect
+            x="46"
+            y="46"
+            width="428"
+            height="428"
+            rx="24"
+            fill="rgba(0,0,0,0.16)"
+            stroke="rgba(120,255,170,0.18)"
+            strokeWidth="2"
+          />
         </g>
 
         {/* Header text */}
@@ -141,14 +159,19 @@ export default function VaultGirlSVG({
           {/* Aura behind the figure */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* ✅ REAL hologram image */}
+          {/* ✅ REAL hologram image
+              IMPORTANT FIXES:
+              - use BOTH href + xlinkHref (some browsers need xlinkHref inside SVG)
+              - use slice so it fills the window like your example (not small / "meet")
+          */}
           <image
             href={IMG_SRC}
+            xlinkHref={IMG_SRC}
             x="70"
             y="96"
             width="380"
             height="350"
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio="xMidYMid slice"
             filter="url(#holoTint)"
             opacity="0.98"
           />
@@ -156,7 +179,14 @@ export default function VaultGirlSVG({
           {/* Trading shimmer */}
           {TRADING && (
             <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.7">
-              <animateTransform attributeName="transform" type="translate" from="0 0" to="760 0" dur="2.2s" repeatCount="indefinite" />
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                from="0 0"
+                to="760 0"
+                dur="2.2s"
+                repeatCount="indefinite"
+              />
             </rect>
           )}
 
@@ -179,7 +209,8 @@ export default function VaultGirlSVG({
         {/* HUD footer */}
         <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
           <text x="58" y="468" fontSize="12" fill="rgba(120,255,170,0.78)" letterSpacing="2">
-            POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}{PNL.toFixed(2)}
+            POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}
+            {PNL.toFixed(2)}
           </text>
         </g>
 
