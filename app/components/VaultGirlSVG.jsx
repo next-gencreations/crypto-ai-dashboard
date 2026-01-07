@@ -12,28 +12,14 @@ export default function VaultGirlSVG({
   lastPnl = 0,
   isTrading = false,
   showDebugTag = false,
+
+  // Optional: you can pass imgSrc="/something.png"
+  imgSrc = "",
 }) {
   const H = clampNum(health, 0, 100, 100);
   const POS = num(openPositions, 0);
   const PNL = num(lastPnl, 0);
   const TRADING = !!isTrading;
-
-  // ✅ Use JPG (your PNG was corrupt on Vercel)
-  const IMG_SRC = "/vaultgirl.jpg";
-
-  // Preload image (so we can show a fallback if it fails)
-  const [imgOk, setImgOk] = useState(true);
-
-  useEffect(() => {
-    let alive = true;
-    const im = new Image();
-    im.onload = () => alive && setImgOk(true);
-    im.onerror = () => alive && setImgOk(false);
-    im.src = IMG_SRC;
-    return () => {
-      alive = false;
-    };
-  }, [IMG_SRC]);
 
   const ringState = useMemo(() => {
     const s = String(stage || "").toLowerCase();
@@ -66,7 +52,57 @@ export default function VaultGirlSVG({
   const accentStroke =
     PNL < 0 ? "var(--pip-down, rgba(255,80,80,0.95))" : "var(--pip-up, rgba(0,255,160,0.95))";
   const accentFill =
-    PNL < 0 ? "var(--pip-down-fill, rgba(255,80,80,0.18))" : "var(--pip-up-fill, rgba(0,255,160,0.18))";
+    PNL < 0
+      ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
+      : "var(--pip-up-fill, rgba(0,255,160,0.18))";
+
+  /**
+   * ✅ Robust image loading:
+   * - DO NOT import from /public (that triggers build-time processing)
+   * - Instead we reference by URL path and we TEST load it in the browser.
+   * - If image fails, we show a female hologram vector fallback.
+   */
+  const candidates = useMemo(() => {
+    const list = [];
+    const cleaned = String(imgSrc || "").trim();
+    if (cleaned) list.push(cleaned);
+    list.push("/vaultgirl.png", "/vaultgirl.jpg", "/vaultgirl.jpeg");
+    // remove duplicates
+    return Array.from(new Set(list));
+  }, [imgSrc]);
+
+  const [resolvedSrc, setResolvedSrc] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // cache-bust so mobile doesn’t keep a broken cached file
+    const bust = `v=${Date.now()}`;
+
+    const tryLoad = async () => {
+      for (const raw of candidates) {
+        const src = raw.includes("?") ? `${raw}&${bust}` : `${raw}?${bust}`;
+        const ok = await new Promise((res) => {
+          const im = new Image();
+          im.onload = () => res(true);
+          im.onerror = () => res(false);
+          im.src = src;
+        });
+        if (cancelled) return;
+        if (ok) {
+          setResolvedSrc(src);
+          return;
+        }
+      }
+      setResolvedSrc(""); // none worked -> fallback drawing
+    };
+
+    tryLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
 
   return (
     <div style={{ width: "100%", height: "100%" }}>
@@ -80,7 +116,7 @@ export default function VaultGirlSVG({
             </feMerge>
           </filter>
 
-          {/* Green hologram tint + glow */}
+          {/* Strong green hologram tint + glow (works on SVG <image>) */}
           <filter id="holoTint" x="-40%" y="-40%" width="180%" height="180%">
             <feColorMatrix
               type="matrix"
@@ -170,13 +206,13 @@ export default function VaultGirlSVG({
         <g clipPath="url(#portraitClip)">
           <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
 
-          {/* Aura */}
+          {/* Aura behind the figure */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* ✅ REAL hologram image (only if it loads) */}
-          {imgOk ? (
+          {/* ✅ If image loads, use it. If not, render female hologram fallback */}
+          {resolvedSrc ? (
             <image
-              href={IMG_SRC}
+              href={resolvedSrc}
               x="70"
               y="96"
               width="380"
@@ -186,20 +222,7 @@ export default function VaultGirlSVG({
               opacity="0.98"
             />
           ) : (
-            // Fallback silhouette if image fails
-            <g filter="url(#pipGlow)" opacity="0.95">
-              <circle cx="260" cy="165" r="32" fill="rgba(120,255,170,0.20)" stroke="rgba(170,255,210,0.8)" strokeWidth="2" />
-              <path
-                d="M190 220 C210 200, 240 195, 260 195 C280 195, 310 200, 330 220
-                   C350 242, 350 275, 340 300
-                   C330 330, 310 360, 260 392
-                   C210 360, 190 330, 180 300
-                   C170 275, 170 242, 190 220 Z"
-                fill="rgba(120,255,170,0.12)"
-                stroke="rgba(170,255,210,0.85)"
-                strokeWidth="2"
-              />
-            </g>
+            <FemaleHoloFallback />
           )}
 
           {/* Trading shimmer */}
@@ -228,8 +251,7 @@ export default function VaultGirlSVG({
         {/* HUD footer */}
         <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
           <text x="58" y="468" fontSize="12" fill="rgba(120,255,170,0.78)" letterSpacing="2">
-            POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}
-            {PNL.toFixed(2)}
+            POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}{PNL.toFixed(2)}
           </text>
         </g>
 
@@ -238,11 +260,68 @@ export default function VaultGirlSVG({
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            mood={String(mood)} stage={String(stage)}
+            mood={String(mood)} stage={String(stage)} img={resolvedSrc ? "OK" : "FALLBACK"}
           </text>
         )}
       </svg>
     </div>
+  );
+}
+
+/**
+ * Female hologram fallback (used when image doesn’t load).
+ * Keeps the “female form” silhouette so the UI never looks broken.
+ */
+function FemaleHoloFallback() {
+  return (
+    <g opacity="0.95">
+      {/* soft glow */}
+      <circle cx="260" cy="250" r="120" fill="rgba(120,255,170,0.14)" />
+      <circle cx="260" cy="250" r="165" fill="none" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
+      <circle cx="260" cy="250" r="135" fill="none" stroke="rgba(120,255,170,0.12)" strokeWidth="2" />
+
+      {/* head */}
+      <circle cx="260" cy="165" r="28" fill="rgba(170,255,210,0.10)" stroke="rgba(170,255,210,0.70)" strokeWidth="2" />
+
+      {/* torso + hips (stylized feminine outline) */}
+      <path
+        d="
+          M 260 195
+          C 238 205, 220 220, 210 242
+          C 200 265, 206 290, 222 312
+          C 240 337, 250 356, 260 382
+          C 270 356, 280 337, 298 312
+          C 314 290, 320 265, 310 242
+          C 300 220, 282 205, 260 195
+          Z
+        "
+        fill="rgba(120,255,170,0.10)"
+        stroke="rgba(170,255,210,0.70)"
+        strokeWidth="2"
+      />
+
+      {/* waist highlight */}
+      <path
+        d="M 220 268 C 242 290, 278 290, 300 268"
+        fill="none"
+        stroke="rgba(120,255,170,0.40)"
+        strokeWidth="2"
+        opacity="0.9"
+      />
+
+      {/* “13” mark */}
+      <text
+        x="260"
+        y="312"
+        textAnchor="middle"
+        fontSize="18"
+        style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
+        fill="rgba(170,255,210,0.75)"
+        letterSpacing="3"
+      >
+        13
+      </text>
+    </g>
   );
 }
 
