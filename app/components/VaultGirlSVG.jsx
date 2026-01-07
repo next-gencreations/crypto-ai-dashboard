@@ -4,10 +4,12 @@
 import React, { useMemo } from "react";
 
 /**
- * VaultGirlSVG (Hologram Vault Girl)
- * - Clean, friendly, unmistakably female cartoon silhouette (Cortana-ish hologram)
- * - No uncanny face: simple soft shapes, hair, suit outline
+ * VaultGirlSVG (Hologram Companion — Cortana-ish)
+ * - Human female hologram silhouette (no cartoon stick figure)
+ * - Soft gradients + glow + scanlines
  * - Reacts to: isTrading, lastPnl, openPositions, health, mood/stage
+ *
+ * NOTE: This is stylized vector art, not photorealistic.
  */
 export default function VaultGirlSVG({
   mood = "cryo",
@@ -19,34 +21,16 @@ export default function VaultGirlSVG({
   isTrading = false,
   showDebugTag = false,
 }) {
-  const safeHealth = Number.isFinite(Number(health)) ? Math.max(0, Math.min(100, Number(health))) : 100;
+  const safeHealth = Number.isFinite(Number(health))
+    ? Math.max(0, Math.min(100, Number(health)))
+    : 100;
+
   const pnl = Number.isFinite(Number(lastPnl)) ? Number(lastPnl) : 0;
   const pos = Number.isFinite(Number(openPositions)) ? Number(openPositions) : 0;
-
   const trading = !!isTrading;
+
   const pnlUp = pnl > 0;
   const pnlDown = pnl < 0;
-
-  const pulseSpeed = useMemo(() => {
-    const base = trading ? 1.3 : 1.9;
-    const posAdj = Math.max(0, Math.min(0.6, pos * 0.08));
-    return Math.max(0.85, base - posAdj);
-  }, [trading, pos]);
-
-  const glow = useMemo(() => {
-    const h = safeHealth / 100;
-    const base = 0.55 + h * 0.45;
-    const tradeBoost = trading ? 0.25 : 0;
-    const posBoost = Math.min(0.2, pos * 0.03);
-    return Math.max(0.35, Math.min(1.15, base + tradeBoost + posBoost));
-  }, [safeHealth, trading, pos]);
-
-  const damageLevel = useMemo(() => {
-    if (safeHealth >= 80) return 0;
-    if (safeHealth >= 55) return 1;
-    if (safeHealth >= 30) return 2;
-    return 3;
-  }, [safeHealth]);
 
   const ringState = useMemo(() => {
     const s = String(stage || "").toLowerCase();
@@ -63,6 +47,29 @@ export default function VaultGirlSVG({
     return "TRADING · ACTIVE";
   }, [trading, pnlUp, pnlDown]);
 
+  const pulseSpeed = useMemo(() => {
+    // Faster pulse when more positions are open
+    const base = trading ? 1.35 : 2.0;
+    const posAdj = Math.max(0, Math.min(0.7, pos * 0.08));
+    return Math.max(0.85, base - posAdj);
+  }, [trading, pos]);
+
+  const glow = useMemo(() => {
+    // Glow increases with health + trading
+    const h = safeHealth / 100;
+    const base = 0.55 + h * 0.45;
+    const tradeBoost = trading ? 0.22 : 0;
+    const posBoost = Math.min(0.18, pos * 0.03);
+    return Math.max(0.35, Math.min(1.15, base + tradeBoost + posBoost));
+  }, [safeHealth, trading, pos]);
+
+  const damageLevel = useMemo(() => {
+    if (safeHealth >= 80) return 0;
+    if (safeHealth >= 55) return 1;
+    if (safeHealth >= 30) return 2;
+    return 3;
+  }, [safeHealth]);
+
   const accentStroke = pnlDown
     ? "var(--pip-down, rgba(255,80,80,0.95))"
     : "var(--pip-up, rgba(0,255,160,0.95))";
@@ -71,10 +78,20 @@ export default function VaultGirlSVG({
     ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
     : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
+  const holoStroke = "rgba(170,255,210,0.85)";
+  const holoStrokeDim = "rgba(170,255,210,0.55)";
+
   return (
     <div style={{ width: "100%", height: "100%" }}>
-      <svg viewBox="0 0 520 520" width="100%" height="100%" role="img" aria-label="Vault Girl hologram companion">
+      <svg
+        viewBox="0 0 520 520"
+        width="100%"
+        height="100%"
+        role="img"
+        aria-label="Hologram companion"
+      >
         <defs>
+          {/* Main glow */}
           <filter id="pipGlow" x="-40%" y="-40%" width="180%" height="180%">
             <feGaussianBlur stdDeviation={8 * glow} result="blur" />
             <feMerge>
@@ -83,13 +100,35 @@ export default function VaultGirlSVG({
             </feMerge>
           </filter>
 
-          <radialGradient id="holoCore" cx="50%" cy="40%" r="70%">
-            <stop offset="0%" stopColor="rgba(170,255,210,0.90)" />
-            <stop offset="40%" stopColor="rgba(120,255,170,0.38)" />
+          {/* Softer inner glow */}
+          <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation={4 * glow} result="b2" />
+            <feMerge>
+              <feMergeNode in="b2" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <radialGradient id="holoCore" cx="50%" cy="40%" r="75%">
+            <stop offset="0%" stopColor="rgba(190,255,230,0.92)" />
+            <stop offset="40%" stopColor="rgba(120,255,170,0.40)" />
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
 
-          <radialGradient id="vignette" cx="50%" cy="45%" r="70%">
+          {/* Fill for the hologram body */}
+          <linearGradient id="bodyFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(180,255,220,0.22)" />
+            <stop offset="55%" stopColor="rgba(120,255,170,0.14)" />
+            <stop offset="100%" stopColor="rgba(120,255,170,0.06)" />
+          </linearGradient>
+
+          {/* Face highlight */}
+          <radialGradient id="faceGlow" cx="50%" cy="35%" r="70%">
+            <stop offset="0%" stopColor="rgba(210,255,240,0.28)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
+
+          <radialGradient id="vignette" cx="50%" cy="45%" r="72%">
             <stop offset="55%" stopColor="rgba(0,0,0,0)" />
             <stop offset="100%" stopColor="rgba(0,0,0,0.55)" />
           </radialGradient>
@@ -102,14 +141,13 @@ export default function VaultGirlSVG({
             <circle cx="2" cy="2" r="1.2" fill="rgba(120,255,170,0.10)" />
           </pattern>
 
-          {/* subtle shimmer when trading */}
+          {/* Subtle shimmer sweep */}
           <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="rgba(255,255,255,0)" />
             <stop offset="50%" stopColor="rgba(200,255,230,0.22)" />
             <stop offset="100%" stopColor="rgba(255,255,255,0)" />
           </linearGradient>
 
-          {/* clip for portrait area */}
           <clipPath id="portraitClip">
             <rect x="70" y="96" width="380" height="350" rx="22" />
           </clipPath>
@@ -121,8 +159,26 @@ export default function VaultGirlSVG({
 
         {/* Frame */}
         <g filter="url(#pipGlow)">
-          <rect x="26" y="26" width="468" height="468" rx="28" fill="rgba(0,0,0,0.22)" stroke="rgba(120,255,170,0.30)" strokeWidth="2" />
-          <rect x="46" y="46" width="428" height="428" rx="24" fill="rgba(0,0,0,0.16)" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
+          <rect
+            x="26"
+            y="26"
+            width="468"
+            height="468"
+            rx="28"
+            fill="rgba(0,0,0,0.22)"
+            stroke="rgba(120,255,170,0.30)"
+            strokeWidth="2"
+          />
+          <rect
+            x="46"
+            y="46"
+            width="428"
+            height="428"
+            rx="24"
+            fill="rgba(0,0,0,0.16)"
+            stroke="rgba(120,255,170,0.18)"
+            strokeWidth="2"
+          />
         </g>
 
         {/* Header text */}
@@ -137,85 +193,151 @@ export default function VaultGirlSVG({
 
         {/* Portrait area */}
         <g clipPath="url(#portraitClip)">
-          <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
+          <rect
+            x="70"
+            y="96"
+            width="380"
+            height="350"
+            rx="22"
+            fill="rgba(0,0,0,0.12)"
+            stroke="rgba(120,255,170,0.18)"
+          />
 
           {/* Holo aura */}
-          <circle cx="260" cy="250" r="170" fill="url(#holoCore)" opacity="0.95" />
+          <circle cx="260" cy="250" r="172" fill="url(#holoCore)" opacity="0.95" />
 
           {/* Trading shimmer sweep */}
           {trading && (
             <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.7">
-              <animateTransform attributeName="transform" type="translate" from="0 0" to="760 0" dur="2.4s" repeatCount="indefinite" />
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                from="0 0"
+                to="760 0"
+                dur="2.4s"
+                repeatCount="indefinite"
+              />
             </rect>
           )}
 
-          {/* === VAULT GIRL (clean cartoon hologram) === */}
-          <g
-            transform="translate(0,0)"
-            fill="none"
-            stroke="rgba(170,255,210,0.80)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter="url(#pipGlow)"
-          >
-            {/* Head silhouette */}
-            <path d="M215 190 C215 152 245 132 260 132 C290 132 305 156 305 190 C305 214 292 230 260 232 C232 230 215 214 215 190 Z" />
+          {/* === HOLOGRAM WOMAN (Cortana-ish) === */}
+          <g filter="url(#pipGlow)">
+            {/* Subtle floating / breathing */}
+            <g>
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0 0; 0 -2; 0 0"
+                dur={`${pulseSpeed}s`}
+                repeatCount="indefinite"
+              />
 
-            {/* Hair bangs (soft) */}
-            <path d="M226 168 C238 154 252 150 268 150 C280 150 292 154 300 164" opacity="0.85" />
-            <path d="M234 176 C246 165 258 162 270 162" opacity="0.65" />
+              {/* BODY SILHOUETTE (filled, human proportions) */}
+              <path
+                d="
+                  M260 140
+                  C290 140 312 166 312 194
+                  C312 222 290 244 260 244
+                  C232 244 208 222 208 194
+                  C208 166 230 140 260 140
+                  Z
 
-            {/* Ponytail */}
-            <path d="M305 182 C334 192 340 220 322 242" opacity="0.85" />
+                  M210 278
+                  C222 260 242 252 260 252
+                  C278 252 298 260 310 278
+                  C328 304 332 334 326 362
+                  C320 390 300 410 280 418
+                  C270 422 250 422 240 418
+                  C220 410 200 390 194 362
+                  C188 334 192 304 210 278
+                  Z
+                "
+                fill="url(#bodyFill)"
+                stroke={holoStroke}
+                strokeWidth="3.5"
+                strokeLinejoin="round"
+              />
 
-            {/* Neck */}
-            <path d="M246 232 L246 252" />
-            <path d="M274 232 L274 252" />
+              {/* NECK + COLLAR LINES */}
+              <path d="M244 244 C246 258 252 266 260 268 C268 266 274 258 276 244" fill="none" stroke={holoStrokeDim} strokeWidth="3" />
+              <path d="M224 294 C244 282 276 282 296 294" fill="none" stroke={holoStrokeDim} strokeWidth="3" opacity="0.7" />
 
-            {/* Shoulders / suit top */}
-            <path d="M190 310 C210 270 235 258 260 258 C285 258 310 270 330 310" />
+              {/* SHOULDERS + ARMS (not stick; softened) */}
+              <path
+                d="M196 318 C176 318 164 338 170 358 C176 378 198 382 210 370"
+                fill="none"
+                stroke={holoStrokeDim}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M324 318 C344 318 356 338 350 358 C344 378 322 382 310 370"
+                fill="none"
+                stroke={holoStrokeDim}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
 
-            {/* Suit torso outline */}
-            <path d="M210 310 C210 360 230 400 260 410 C290 400 310 360 310 310" />
+              {/* HEAD DETAILS (minimal, human, not uncanny) */}
+              <circle cx="260" cy="190" r="52" fill="url(#faceGlow)" opacity="0.85" />
 
-            {/* Suit center seam */}
-            <path d="M260 258 L260 410" opacity="0.55" />
+              {/* Hair cap (sleek) */}
+              <path
+                d="M214 190
+                   C214 162 236 146 260 146
+                   C292 146 310 168 310 196
+                   C308 176 292 168 274 168
+                   C256 168 242 176 236 188
+                   C230 200 222 206 214 206
+                   Z"
+                fill="rgba(170,255,210,0.12)"
+                stroke={holoStrokeDim}
+                strokeWidth="3"
+                strokeLinejoin="round"
+              />
 
-            {/* Vault “13” on suit (more readable) */}
-            <text
-              x="260"
-              y="392"
-              textAnchor="middle"
-              fontSize="44"
-              fill="rgba(170,255,210,0.55)"
-              style={{ letterSpacing: "2px", fontWeight: 900 }}
-            >
-              13
-            </text>
+              {/* Side hair flow */}
+              <path
+                d="M312 202 C340 216 344 246 326 266 C318 276 310 282 300 286"
+                fill="none"
+                stroke={holoStrokeDim}
+                strokeWidth="3"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
 
-            {/* Friendly face: eyes + small smile (non-creepy) */}
-            <path d="M242 194 C246 190 252 190 256 194" opacity="0.75" />
-            <path d="M264 194 C268 190 274 190 278 194" opacity="0.75" />
-            <path d="M248 210 C256 218 264 218 272 210" opacity="0.75" />
+              {/* Eyes (soft) */}
+              <path d="M238 198 C246 192 254 192 262 198" fill="none" stroke="rgba(210,255,240,0.70)" strokeWidth="3" strokeLinecap="round" />
+              <path d="M258 198 C266 192 274 192 282 198" fill="none" stroke="rgba(210,255,240,0.70)" strokeWidth="3" strokeLinecap="round" />
 
-            {/* Left hand “wave” (simple) */}
-            <path d="M195 306 C176 300 166 284 170 266" />
-            <path d="M170 266 C174 246 196 240 206 256" />
-            <path d="M206 256 C214 268 208 292 195 306" />
+              {/* Small smile */}
+              <path d="M246 218 C254 226 266 226 274 218" fill="none" stroke="rgba(210,255,240,0.65)" strokeWidth="3" strokeLinecap="round" />
 
-            {/* Wrist device */}
-            <path d="M192 304 C200 312 210 314 220 308" opacity="0.65" />
+              {/* Holo “spine” / suit seam */}
+              <path d="M260 268 L260 420" fill="none" stroke="rgba(170,255,210,0.35)" strokeWidth="3" opacity="0.8" />
+
+              {/* Vault number (subtle) */}
+              <text
+                x="260"
+                y="405"
+                textAnchor="middle"
+                fontSize="46"
+                fill="rgba(170,255,210,0.22)"
+                style={{ letterSpacing: "2px", fontWeight: 900 }}
+              >
+                {String(vaultNumber || "13")}
+              </text>
+            </g>
           </g>
 
-          {/* Accent pulse ring around her when trading */}
+          {/* Accent pulse ring when trading */}
           {trading && (
-            <g opacity="0.8">
-              <circle cx="260" cy="260" r="150" fill="none" stroke={accentStroke} strokeWidth="3" opacity="0.35">
+            <g opacity="0.85">
+              <circle cx="260" cy="260" r="150" fill="none" stroke={accentStroke} strokeWidth="3" opacity="0.30">
                 <animate attributeName="opacity" values="0.10;0.50;0.10" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
               </circle>
-              <circle cx="260" cy="260" r="120" fill={accentFill} stroke={accentStroke} strokeWidth="2" opacity="0.18">
-                <animate attributeName="opacity" values="0.08;0.25;0.08" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
+              <circle cx="260" cy="260" r="120" fill={accentFill} stroke={accentStroke} strokeWidth="2" opacity="0.16">
+                <animate attributeName="opacity" values="0.06;0.26;0.06" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
               </circle>
             </g>
           )}
@@ -223,8 +345,8 @@ export default function VaultGirlSVG({
           {/* Light glitch when health low */}
           {damageLevel >= 2 && (
             <>
-              <rect x="78" y="160" width="364" height="8" fill="rgba(255,80,80,0.20)" opacity="0.35" />
-              <rect x="78" y="268" width="364" height="6" fill="rgba(255,80,80,0.14)" opacity="0.25" />
+              <rect x="78" y="160" width="364" height="8" fill="rgba(255,80,80,0.20)" opacity="0.32" />
+              <rect x="78" y="268" width="364" height="6" fill="rgba(255,80,80,0.14)" opacity="0.22" />
             </>
           )}
         </g>
