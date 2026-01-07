@@ -1,0 +1,294 @@
+// app/components/VaultGirlSVG.js
+"use client";
+
+import React, { useMemo } from "react";
+
+/**
+ * VaultGirlSVG (Realistic hologram image version)
+ *
+ * ✅ IMPORTANT:
+ * 1) Put your “perfect” image into: /public/vaultgirl.png
+ *    - So the URL becomes: /vaultgirl.png
+ * 2) Then this component will display it inside the hologram frame,
+ *    with scanlines + trading pulse + low-health glitch bars.
+ */
+export default function VaultGirlSVG({
+  mood = "cryo",
+  stage = "cryo",
+  vaultNumber = "13",
+  health = 100,
+  openPositions = 0,
+  lastPnl = 0,
+  isTrading = false,
+  showDebugTag = false,
+}) {
+  const safeHealth = Number.isFinite(Number(health))
+    ? Math.max(0, Math.min(100, Number(health)))
+    : 100;
+
+  const pnl = Number.isFinite(Number(lastPnl)) ? Number(lastPnl) : 0;
+  const pos = Number.isFinite(Number(openPositions)) ? Number(openPositions) : 0;
+
+  const trading = !!isTrading;
+  const pnlUp = pnl > 0;
+  const pnlDown = pnl < 0;
+
+  const pulseSpeed = useMemo(() => {
+    const base = trading ? 1.3 : 1.9;
+    const posAdj = Math.max(0, Math.min(0.6, pos * 0.08));
+    return Math.max(0.85, base - posAdj);
+  }, [trading, pos]);
+
+  const glow = useMemo(() => {
+    const h = safeHealth / 100;
+    const base = 0.55 + h * 0.45;
+    const tradeBoost = trading ? 0.25 : 0;
+    const posBoost = Math.min(0.2, pos * 0.03);
+    return Math.max(0.35, Math.min(1.15, base + tradeBoost + posBoost));
+  }, [safeHealth, trading, pos]);
+
+  const damageLevel = useMemo(() => {
+    if (safeHealth >= 80) return 0;
+    if (safeHealth >= 55) return 1;
+    if (safeHealth >= 30) return 2;
+    return 3;
+  }, [safeHealth]);
+
+  const ringState = useMemo(() => {
+    const s = String(stage || "").toLowerCase();
+    const m = String(mood || "").toLowerCase();
+    if (s.includes("cryo") || m.includes("cryo")) return "CRYO";
+    if (m.includes("panic") || m.includes("angry") || m.includes("alert")) return "ALERT";
+    return "NOMINAL";
+  }, [stage, mood]);
+
+  const statusText = useMemo(() => {
+    if (!trading) return "IDLE";
+    if (pnlUp) return "TRADING · PROFIT";
+    if (pnlDown) return "TRADING · LOSS";
+    return "TRADING · ACTIVE";
+  }, [trading, pnlUp, pnlDown]);
+
+  const accentStroke = pnlDown
+    ? "var(--pip-down, rgba(255,80,80,0.95))"
+    : "var(--pip-up, rgba(0,255,160,0.95))";
+
+  const accentFill = pnlDown
+    ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
+    : "var(--pip-up-fill, rgba(0,255,160,0.18))";
+
+  // ✅ Your image in /public
+  const imgSrc = "/vaultgirl.png";
+
+  return (
+    <div style={{ width: "100%", height: "100%" }}>
+      <svg
+        viewBox="0 0 520 520"
+        width="100%"
+        height="100%"
+        role="img"
+        aria-label="Vault hologram companion"
+      >
+        <defs>
+          <filter id="pipGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation={8 * glow} result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <radialGradient id="holoCore" cx="50%" cy="40%" r="70%">
+            <stop offset="0%" stopColor="rgba(170,255,210,0.35)" />
+            <stop offset="40%" stopColor="rgba(120,255,170,0.18)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
+
+          <radialGradient id="vignette" cx="50%" cy="45%" r="70%">
+            <stop offset="55%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.60)" />
+          </radialGradient>
+
+          <pattern id="scan" width="6" height="6" patternUnits="userSpaceOnUse">
+            <rect x="0" y="0" width="6" height="1" fill="rgba(120,255,170,0.06)" />
+          </pattern>
+
+          <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.2" fill="rgba(120,255,170,0.10)" />
+          </pattern>
+
+          <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="50%" stopColor="rgba(200,255,230,0.20)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </linearGradient>
+
+          <clipPath id="portraitClip">
+            <rect x="70" y="96" width="380" height="350" rx="22" />
+          </clipPath>
+
+          {/* slight green tint overlay for the image */}
+          <linearGradient id="pipTint" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(120,255,170,0.10)" />
+            <stop offset="55%" stopColor="rgba(120,255,170,0.04)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.22)" />
+          </linearGradient>
+        </defs>
+
+        {/* Backplate */}
+        <rect x="0" y="0" width="520" height="520" fill="rgba(0,0,0,0.06)" />
+        <rect x="0" y="0" width="520" height="520" fill="url(#dots)" opacity="0.35" />
+
+        {/* Frame */}
+        <g filter="url(#pipGlow)">
+          <rect
+            x="26"
+            y="26"
+            width="468"
+            height="468"
+            rx="28"
+            fill="rgba(0,0,0,0.22)"
+            stroke="rgba(120,255,170,0.30)"
+            strokeWidth="2"
+          />
+          <rect
+            x="46"
+            y="46"
+            width="428"
+            height="428"
+            rx="24"
+            fill="rgba(0,0,0,0.16)"
+            stroke="rgba(120,255,170,0.18)"
+            strokeWidth="2"
+          />
+        </g>
+
+        {/* Header text */}
+        <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
+          <text x="58" y="84" fontSize="16" fill="rgba(170,255,210,0.95)" letterSpacing="3">
+            VAULT COMPANION · HOLOGRAM
+          </text>
+          <text x="58" y="108" fontSize="12" fill="rgba(120,255,170,0.80)" letterSpacing="2">
+            VAULT {String(vaultNumber || "13")} · {ringState} · {statusText}
+          </text>
+        </g>
+
+        {/* Portrait area */}
+        <g clipPath="url(#portraitClip)">
+          <rect
+            x="70"
+            y="96"
+            width="380"
+            height="350"
+            rx="22"
+            fill="rgba(0,0,0,0.12)"
+            stroke="rgba(120,255,170,0.18)"
+          />
+
+          {/* Image itself (cover-fit) */}
+          <image
+            href={imgSrc}
+            xlinkHref={imgSrc}
+            x="70"
+            y="96"
+            width="380"
+            height="350"
+            preserveAspectRatio="xMidYMid slice"
+            opacity="0.92"
+          />
+
+          {/* tint + soft aura */}
+          <rect x="70" y="96" width="380" height="350" fill="url(#pipTint)" opacity="0.85" />
+          <circle cx="260" cy="250" r="175" fill="url(#holoCore)" opacity="0.9" />
+
+          {/* Trading shimmer sweep */}
+          {trading && (
+            <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.75">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                from="0 0"
+                to="760 0"
+                dur="2.3s"
+                repeatCount="indefinite"
+              />
+            </rect>
+          )}
+
+          {/* Accent pulse rings when trading */}
+          {trading && (
+            <g opacity="0.85">
+              <circle
+                cx="260"
+                cy="260"
+                r="152"
+                fill="none"
+                stroke={accentStroke}
+                strokeWidth="3"
+                opacity="0.28"
+              >
+                <animate
+                  attributeName="opacity"
+                  values="0.10;0.50;0.10"
+                  dur={`${pulseSpeed}s`}
+                  repeatCount="indefinite"
+                />
+              </circle>
+
+              <circle
+                cx="260"
+                cy="260"
+                r="122"
+                fill={accentFill}
+                stroke={accentStroke}
+                strokeWidth="2"
+                opacity="0.16"
+              >
+                <animate
+                  attributeName="opacity"
+                  values="0.07;0.24;0.07"
+                  dur={`${pulseSpeed}s`}
+                  repeatCount="indefinite"
+                />
+              </circle>
+            </g>
+          )}
+
+          {/* Low-health glitch bars */}
+          {damageLevel >= 2 && (
+            <>
+              <rect x="78" y="158" width="364" height="9" fill="rgba(255,80,80,0.18)" opacity="0.35" />
+              <rect x="78" y="270" width="364" height="7" fill="rgba(255,80,80,0.12)" opacity="0.25" />
+            </>
+          )}
+        </g>
+
+        {/* HUD footer */}
+        <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
+          <text x="58" y="468" fontSize="12" fill="rgba(120,255,170,0.78)" letterSpacing="2">
+            POS: {pos} · HEALTH: {safeHealth.toFixed(0)}% · PNL: {pnl > 0 ? "+" : ""}
+            {pnl.toFixed(2)}
+          </text>
+        </g>
+
+        {/* scanlines + vignette */}
+        <rect
+          x="46"
+          y="46"
+          width="428"
+          height="428"
+          rx="24"
+          fill="url(#scan)"
+          opacity={damageLevel >= 3 ? 0.95 : 0.58}
+        />
+        <rect x="46" y="46" width="428" height="428" rx="24" fill="url(#vignette)" opacity="0.55" />
+
+        {showDebugTag && (
+          <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
+            mood={String(mood)} stage={String(stage)}
+          </text>
+        )}
+      </svg>
+    </div>
+  );
+}
