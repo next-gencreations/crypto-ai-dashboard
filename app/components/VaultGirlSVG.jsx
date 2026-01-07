@@ -3,10 +3,6 @@
 
 import React, { useMemo } from "react";
 
-/**
- * VaultGirlSVG — uses a REAL image hologram inside your Pip-Boy frame
- * Put file here: /public/vaultgirl.png
- */
 export default function VaultGirlSVG({
   mood = "cryo",
   stage = "cryo",
@@ -55,14 +51,13 @@ export default function VaultGirlSVG({
   const accentFill =
     PNL < 0 ? "var(--pip-down-fill, rgba(255,80,80,0.18))" : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  // If you rename the file, change it here:
+  // ✅ your file is: /public/vaultgirl.png
   const IMG_SRC = "/vaultgirl.png";
 
   return (
     <div style={{ width: "100%", height: "100%" }}>
       <svg viewBox="0 0 520 520" width="100%" height="100%" role="img" aria-label="Vault Girl hologram companion">
         <defs>
-          {/* outer glow */}
           <filter id="pipGlow" x="-45%" y="-45%" width="190%" height="190%">
             <feGaussianBlur stdDeviation={8 * glowMul} result="blur" />
             <feMerge>
@@ -71,18 +66,18 @@ export default function VaultGirlSVG({
             </feMerge>
           </filter>
 
-          {/* green hologram tint + extra glow */}
+          {/* Strong green hologram tint + glow */}
           <filter id="holoTint" x="-40%" y="-40%" width="180%" height="180%">
             <feColorMatrix
               type="matrix"
               values="
                 0.10 0.00 0.00 0.00 0.00
-                0.00 1.35 0.00 0.00 0.00
+                0.00 1.45 0.00 0.00 0.00
                 0.00 0.00 0.25 0.00 0.00
                 0.00 0.00 0.00 1.00 0.00"
               result="tinted"
             />
-            <feGaussianBlur in="tinted" stdDeviation="2.5" result="soft" />
+            <feGaussianBlur in="tinted" stdDeviation="2.6" result="soft" />
             <feMerge>
               <feMergeNode in="soft" />
               <feMergeNode in="tinted" />
@@ -90,7 +85,7 @@ export default function VaultGirlSVG({
           </filter>
 
           <radialGradient id="holoAura" cx="50%" cy="42%" r="70%">
-            <stop offset="0%" stopColor="rgba(170,255,210,0.75)" />
+            <stop offset="0%" stopColor="rgba(170,255,210,0.70)" />
             <stop offset="45%" stopColor="rgba(120,255,170,0.22)" />
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
@@ -146,25 +141,17 @@ export default function VaultGirlSVG({
           {/* Aura behind the figure */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* The REAL hologram image */}
+          {/* ✅ REAL hologram image */}
           <image
             href={IMG_SRC}
             x="70"
             y="96"
             width="380"
             height="350"
-            preserveAspectRatio="xMidYMid slice"
+            preserveAspectRatio="xMidYMid meet"
             filter="url(#holoTint)"
-            opacity="0.95"
+            opacity="0.98"
           />
-
-          {/* Optional soft “bodysuit” overlay lines so it reads more “sci-fi holo” */}
-          <g filter="url(#pipGlow)" opacity="0.35" stroke="rgba(170,255,210,0.85)" strokeWidth="2.2" fill="none">
-            <path d="M260 145 C240 160 236 185 236 210 C236 255 246 310 260 420" />
-            <path d="M260 145 C280 160 284 185 284 210 C284 255 274 310 260 420" />
-            <path d="M210 235 C240 220 280 220 310 235" />
-            <path d="M225 310 C250 292 270 292 295 310" />
-          </g>
 
           {/* Trading shimmer */}
           {TRADING && (
