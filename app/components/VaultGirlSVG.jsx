@@ -1,10 +1,7 @@
 // app/components/VaultGirlSVG.js
 "use client";
 
-import React, { useMemo } from "react";
-
-// ✅ IMPORTANT: import the image so Next bundles it (no /public fetch needed)
-import vaultGirl from "../../public/vaultgirl.png";
+import React, { useMemo, useState } from "react";
 
 export default function VaultGirlSVG({
   mood = "cryo",
@@ -16,6 +13,8 @@ export default function VaultGirlSVG({
   isTrading = false,
   showDebugTag = false,
 }) {
+  const [imgOk, setImgOk] = useState(true);
+
   const H = clampNum(health, 0, 100, 100);
   const POS = num(openPositions, 0);
   const PNL = num(lastPnl, 0);
@@ -54,8 +53,9 @@ export default function VaultGirlSVG({
   const accentFill =
     PNL < 0 ? "var(--pip-down-fill, rgba(255,80,80,0.18))" : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  // ✅ Next gives us a safe, deployed URL
-  const IMG_SRC = vaultGirl?.src || "/vaultgirl.png";
+  // ✅ Use public file directly (NO import => NO build crash)
+  // If you switch to JPG, change this to "/vaultgirl.jpg"
+  const IMG_SRC = "/vaultgirl.png";
 
   return (
     <div style={{ width: "100%", height: "100%" }}>
@@ -66,24 +66,6 @@ export default function VaultGirlSVG({
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-
-          {/* Strong green hologram tint + glow */}
-          <filter id="holoTint" x="-40%" y="-40%" width="180%" height="180%">
-            <feColorMatrix
-              type="matrix"
-              values="
-                0.10 0.00 0.00 0.00 0.00
-                0.00 1.45 0.00 0.00 0.00
-                0.00 0.00 0.25 0.00 0.00
-                0.00 0.00 0.00 1.00 0.00"
-              result="tinted"
-            />
-            <feGaussianBlur in="tinted" stdDeviation="2.6" result="soft" />
-            <feMerge>
-              <feMergeNode in="soft" />
-              <feMergeNode in="tinted" />
             </feMerge>
           </filter>
 
@@ -140,34 +122,67 @@ export default function VaultGirlSVG({
         {/* Portrait area */}
         <g clipPath="url(#portraitClip)">
           <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
-
-          {/* Aura behind the figure */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* ✅ Bundled hologram image */}
-          <image
-            href={IMG_SRC}
-            xlinkHref={IMG_SRC}
-            x="70"
-            y="96"
-            width="380"
-            height="350"
-            preserveAspectRatio="xMidYMid slice"
-            filter="url(#holoTint)"
-            opacity="0.98"
-          />
+          {/* Use foreignObject so we can catch load errors */}
+          <foreignObject x="70" y="96" width="380" height="350">
+            <div
+              xmlns="http://www.w3.org/1999/xhtml"
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 22,
+                overflow: "hidden",
+                background: "rgba(0,0,0,0.06)",
+              }}
+            >
+              {imgOk ? (
+                <img
+                  src={IMG_SRC}
+                  alt="Vault Girl"
+                  onError={() => setImgOk(false)}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    opacity: 0.98,
+                    // hologram tint/glow
+                    filter:
+                      "brightness(1.05) contrast(1.05) saturate(1.3) hue-rotate(85deg) drop-shadow(0 0 14px rgba(120,255,170,0.45))",
+                    mixBlendMode: "screen",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    padding: 16,
+                    textAlign: "center",
+                    color: "rgba(170,255,210,0.9)",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    fontSize: 12,
+                    letterSpacing: 1.5,
+                  }}
+                >
+                  IMAGE FAILED TO LOAD
+                  <div style={{ opacity: 0.8, marginTop: 8 }}>
+                    Replace <b>/public/vaultgirl.png</b> with a valid PNG/JPG.
+                  </div>
+                </div>
+              )}
+            </div>
+          </foreignObject>
 
-          {/* Trading shimmer */}
           {TRADING && (
             <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.7">
               <animateTransform attributeName="transform" type="translate" from="0 0" to="760 0" dur="2.2s" repeatCount="indefinite" />
             </rect>
           )}
 
-          {/* Scanlines */}
           <rect x="70" y="96" width="380" height="350" fill="url(#scan)" opacity="0.55" />
 
-          {/* Trading rings */}
           {TRADING && (
             <g opacity="0.85">
               <circle cx="260" cy="260" r="150" fill="none" stroke={accentStroke} strokeWidth="3" opacity="0.35">
@@ -180,14 +195,12 @@ export default function VaultGirlSVG({
           )}
         </g>
 
-        {/* HUD footer */}
         <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
           <text x="58" y="468" fontSize="12" fill="rgba(120,255,170,0.78)" letterSpacing="2">
             POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}{PNL.toFixed(2)}
           </text>
         </g>
 
-        {/* vignette */}
         <rect x="46" y="46" width="428" height="428" rx="24" fill="url(#vignette)" opacity="0.55" />
 
         {showDebugTag && (
