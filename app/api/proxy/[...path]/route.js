@@ -7,13 +7,18 @@ function jsonResponse(obj, status = 200) {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
   });
 }
 
 function buildUpstreamUrl(req, params) {
-  // ✅ Prefer UPSTREAM_API_URL, but fallback to RENDER_API_URL for compatibility
-  const base = (process.env.UPSTREAM_API_URL || process.env.RENDER_API_URL || "").replace(/\/+$/, "");
+  // Prefer UPSTREAM_API_URL, fallback to RENDER_API_URL
+  const base = (process.env.UPSTREAM_API_URL || process.env.RENDER_API_URL || "")
+    .replace(/\/+$/, "");
+
   if (!base) return null;
 
   const path = Array.isArray(params?.path) ? params.path.join("/") : "";
@@ -27,6 +32,7 @@ function buildUpstreamUrl(req, params) {
 
 async function proxy(req, params) {
   const upstreamUrl = buildUpstreamUrl(req, params);
+
   if (!upstreamUrl) {
     return jsonResponse(
       { error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel" },
@@ -36,23 +42,37 @@ async function proxy(req, params) {
 
   const headers = new Headers(req.headers);
   headers.delete("host");
+  headers.delete("content-length");
 
   const method = req.method.toUpperCase();
   const hasBody = !["GET", "HEAD"].includes(method);
 
-  let body = undefined;
+  let body;
   if (hasBody) body = await req.arrayBuffer();
 
-  const res = await fetch(upstreamUrl, {
-    method,
-    headers,
-    body,
-    cache: "no-store",
-    redirect: "follow",
-  });
+  let res;
+  try {
+    res = await fetch(upstreamUrl, {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+      redirect: "follow",
+    });
+  } catch (err) {
+    return jsonResponse(
+      { error: "Upstream fetch failed", details: String(err) },
+      502
+    );
+  }
 
   const resHeaders = new Headers(res.headers);
   resHeaders.set("Cache-Control", "no-store");
+
+  // ✅ CORS on real responses too (not just OPTIONS)
+  resHeaders.set("Access-Control-Allow-Origin", "*");
+  resHeaders.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  resHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   return new Response(await res.arrayBuffer(), {
     status: res.status,
