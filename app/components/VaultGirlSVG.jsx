@@ -1,7 +1,7 @@
 // app/components/VaultGirlSVG.js
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export default function VaultGirlSVG({
   mood = "cryo",
@@ -49,6 +49,43 @@ export default function VaultGirlSVG({
     return clampNum(base + tradeBoost, 0.5, 1.35, 0.95);
   }, [H, TRADING]);
 
+  // Health -> CSS class (zombie at 20)
+  const healthClass = useMemo(() => {
+    if (H <= 20) return "zombie";
+    if (H <= 35) return "critical";
+    if (H <= 60) return "low";
+    return "";
+  }, [H]);
+
+  // Win/loss burst classes
+  const [burstClass, setBurstClass] = useState("");
+  const prevPnlRef = useRef(null);
+
+  useEffect(() => {
+    // Ignore first render so it doesn't "burst" on load
+    if (prevPnlRef.current === null) {
+      prevPnlRef.current = PNL;
+      return;
+    }
+
+    // Only trigger if pnl meaningfully changes
+    const prev = prevPnlRef.current;
+    prevPnlRef.current = PNL;
+
+    // If we are zombie, we still allow shake/static but the zombie look dominates
+    if (PNL > 0 && prev <= 0) {
+      setBurstClass("feedStatic");
+      const t = setTimeout(() => setBurstClass(""), 750);
+      return () => clearTimeout(t);
+    }
+
+    if (PNL < 0 && prev >= 0) {
+      setBurstClass("hurtShake");
+      const t = setTimeout(() => setBurstClass(""), 450);
+      return () => clearTimeout(t);
+    }
+  }, [PNL]);
+
   const accentStroke =
     PNL < 0 ? "var(--pip-down, rgba(255,80,80,0.95))" : "var(--pip-up, rgba(0,255,160,0.95))";
   const accentFill =
@@ -57,17 +94,14 @@ export default function VaultGirlSVG({
       : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
   /**
-   * ✅ Robust image loading:
-   * - DO NOT import from /public (that triggers build-time processing)
-   * - Instead we reference by URL path and we TEST load it in the browser.
-   * - If image fails, we show a female hologram vector fallback.
+   * Robust image loading:
+   * - Reference by URL path and test-load in browser.
    */
   const candidates = useMemo(() => {
     const list = [];
     const cleaned = String(imgSrc || "").trim();
     if (cleaned) list.push(cleaned);
     list.push("/vaultgirl.png", "/vaultgirl.jpg", "/vaultgirl.jpeg");
-    // remove duplicates
     return Array.from(new Set(list));
   }, [imgSrc]);
 
@@ -75,8 +109,6 @@ export default function VaultGirlSVG({
 
   useEffect(() => {
     let cancelled = false;
-
-    // cache-bust so mobile doesn’t keep a broken cached file
     const bust = `v=${Date.now()}`;
 
     const tryLoad = async () => {
@@ -94,15 +126,20 @@ export default function VaultGirlSVG({
           return;
         }
       }
-      setResolvedSrc(""); // none worked -> fallback drawing
+      setResolvedSrc("");
     };
 
     tryLoad();
-
     return () => {
       cancelled = true;
     };
   }, [candidates]);
+
+  const imgClassName = useMemo(() => {
+    // base + health state + burst
+    // Example: "vg critical hurtShake"
+    return ["vg", healthClass, burstClass].filter(Boolean).join(" ");
+  }, [healthClass, burstClass]);
 
   return (
     <div style={{ width: "100%", height: "100%" }}>
@@ -113,24 +150,6 @@ export default function VaultGirlSVG({
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-
-          {/* Strong green hologram tint + glow (works on SVG <image>) */}
-          <filter id="holoTint" x="-40%" y="-40%" width="180%" height="180%">
-            <feColorMatrix
-              type="matrix"
-              values="
-                0.10 0.00 0.00 0.00 0.00
-                0.00 1.45 0.00 0.00 0.00
-                0.00 0.00 0.25 0.00 0.00
-                0.00 0.00 0.00 1.00 0.00"
-              result="tinted"
-            />
-            <feGaussianBlur in="tinted" stdDeviation="2.6" result="soft" />
-            <feMerge>
-              <feMergeNode in="soft" />
-              <feMergeNode in="tinted" />
             </feMerge>
           </filter>
 
@@ -209,18 +228,32 @@ export default function VaultGirlSVG({
           {/* Aura behind the figure */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* ✅ If image loads, use it. If not, render female hologram fallback */}
+          {/* ✅ PNG as real <img> so CSS animations work */}
           {resolvedSrc ? (
-            <image
-              href={resolvedSrc}
-              x="70"
-              y="96"
-              width="380"
-              height="350"
-              preserveAspectRatio="xMidYMid meet"
-              filter="url(#holoTint)"
-              opacity="0.98"
-            />
+            <foreignObject x="70" y="96" width="380" height="350">
+              <div
+                xmlns="http://www.w3.org/1999/xhtml"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                }}
+              >
+                <img
+                  src={resolvedSrc}
+                  alt="Vault Girl"
+                  className={imgClassName}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </div>
+            </foreignObject>
           ) : (
             <FemaleHoloFallback />
           )}
@@ -260,7 +293,7 @@ export default function VaultGirlSVG({
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            mood={String(mood)} stage={String(stage)} img={resolvedSrc ? "OK" : "FALLBACK"}
+            mood={String(mood)} stage={String(stage)} img={resolvedSrc ? "OK" : "FALLBACK"} class={imgClassName}
           </text>
         )}
       </svg>
@@ -270,20 +303,16 @@ export default function VaultGirlSVG({
 
 /**
  * Female hologram fallback (used when image doesn’t load).
- * Keeps the “female form” silhouette so the UI never looks broken.
  */
 function FemaleHoloFallback() {
   return (
     <g opacity="0.95">
-      {/* soft glow */}
       <circle cx="260" cy="250" r="120" fill="rgba(120,255,170,0.14)" />
       <circle cx="260" cy="250" r="165" fill="none" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
       <circle cx="260" cy="250" r="135" fill="none" stroke="rgba(120,255,170,0.12)" strokeWidth="2" />
 
-      {/* head */}
       <circle cx="260" cy="165" r="28" fill="rgba(170,255,210,0.10)" stroke="rgba(170,255,210,0.70)" strokeWidth="2" />
 
-      {/* torso + hips (stylized feminine outline) */}
       <path
         d="
           M 260 195
@@ -300,7 +329,6 @@ function FemaleHoloFallback() {
         strokeWidth="2"
       />
 
-      {/* waist highlight */}
       <path
         d="M 220 268 C 242 290, 278 290, 300 268"
         fill="none"
@@ -309,7 +337,6 @@ function FemaleHoloFallback() {
         opacity="0.9"
       />
 
-      {/* “13” mark */}
       <text
         x="260"
         y="312"
