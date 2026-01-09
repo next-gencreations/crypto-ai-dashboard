@@ -289,81 +289,115 @@ html, body {
   .pip-stats{ grid-template-columns: 1fr 1fr; }
 }
 
-/* =========================================================
-   ✅ VAULT GIRL ANIMATION (PNG)
-   Add className="vg ..." to your <img>
-   ========================================================= */
+/* =======================================================
+   ✅ VAULT GIRL ANIMATION LAYER (PNG REACTIONS)
+   Works with the updated VaultGirlSVG using <img class="vg ...">
+   ======================================================= */
 
 .vg{
-  will-change: transform, filter, opacity;
-  transform-origin: center;
-  animation: vgFloat 4s ease-in-out infinite;
-  filter: drop-shadow(0 0 18px rgba(0,255,0,0.65));
-  user-select: none;
+  /* Hologram look */
+  filter:
+    drop-shadow(0 0 10px rgba(120,255,170,0.30))
+    drop-shadow(0 0 22px rgba(120,255,170,0.22))
+    saturate(1.15) contrast(1.05);
+  opacity: 0.96;
+
+  /* Smooth state transitions */
+  transition:
+    filter 320ms ease,
+    opacity 320ms ease,
+    transform 160ms ease;
+
+  transform-origin: 50% 60%;
 }
 
-@keyframes vgFloat{
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+/* Subtle idle “breathing” */
+@media (prefers-reduced-motion: no-preference){
+  .vg{
+    animation: vgBreath 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes vgBreath{
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-2px) scale(1.01); }
 }
 
 /* HEALTH STATES */
 .vg.low{
-  filter: drop-shadow(0 0 10px rgba(0,255,0,0.35));
-  opacity: 0.85;
+  opacity: 0.92;
+  filter:
+    drop-shadow(0 0 10px rgba(120,255,170,0.22))
+    drop-shadow(0 0 22px rgba(120,255,170,0.14))
+    saturate(0.95) contrast(1.0);
 }
 
 .vg.critical{
-  animation: vgCritical 0.9s infinite;
-  filter: drop-shadow(0 0 6px rgba(0,255,0,0.25)) saturate(0.85);
-  opacity: 0.75;
+  opacity: 0.88;
+  filter:
+    drop-shadow(0 0 10px rgba(255,140,80,0.24))
+    drop-shadow(0 0 22px rgba(255,80,80,0.18))
+    saturate(0.75) contrast(1.05);
 }
 
-@keyframes vgCritical{
-  0% { transform: translateY(0) rotate(-0.6deg); }
-  50% { transform: translateY(-4px) rotate(0.6deg); }
-  100% { transform: translateY(0) rotate(-0.6deg); }
-}
-
-/* ZOMBIE MODE (health <= 0) */
+/* ✅ ZOMBIE MODE at health <= 20 */
 .vg.zombie{
-  animation: vgZombie 1.2s infinite;
-  filter: grayscale(0.65) hue-rotate(110deg) brightness(0.75)
-          drop-shadow(0 0 10px rgba(120,255,120,0.25));
-  opacity: 0.65;
+  opacity: 0.92;
+  filter:
+    drop-shadow(0 0 10px rgba(255,80,80,0.30))
+    drop-shadow(0 0 26px rgba(255,80,80,0.18))
+    grayscale(0.25)
+    saturate(0.65)
+    hue-rotate(130deg)
+    contrast(1.2);
 }
 
-@keyframes vgZombie{
-  0% { transform: translateY(0) rotate(-1.5deg); }
-  50% { transform: translateY(-2px) rotate(1.5deg); }
-  100% { transform: translateY(0) rotate(-1.5deg); }
+@media (prefers-reduced-motion: no-preference){
+  .vg.zombie{
+    animation: vgZombieGlitch 1.1s steps(2,end) infinite;
+  }
 }
 
-/* WIN: excited static burst */
+@keyframes vgZombieGlitch{
+  0%{ transform: translate(0,0) scale(1); }
+  25%{ transform: translate(-2px,1px) scale(1.01); }
+  50%{ transform: translate(2px,-1px) scale(1.01); }
+  75%{ transform: translate(-1px,-2px) scale(1.01); }
+  100%{ transform: translate(0,0) scale(1); }
+}
+
+/* WIN REACTION: “feed” -> ecstatic static burst */
 .vg.feedStatic{
-  animation: vgStatic 0.7s steps(2, end);
-  filter: drop-shadow(0 0 26px rgba(0,255,0,0.95)) contrast(1.25) saturate(1.35);
+  animation: vgFeed 0.75s ease-out 1;
 }
 
-@keyframes vgStatic{
-  0%   { transform: translate(0,0) scale(1); }
-  15%  { transform: translate(-2px,1px) scale(1.02); }
-  30%  { transform: translate(2px,-1px) scale(1.03); }
-  45%  { transform: translate(-1px,-2px) scale(1.02); }
-  60%  { transform: translate(1px,2px) scale(1.03); }
-  75%  { transform: translate(-2px,0px) scale(1.01); }
-  100% { transform: translate(0,0) scale(1); }
+@keyframes vgFeed{
+  0%{
+    transform: scale(1) translateY(0);
+    filter:
+      drop-shadow(0 0 12px rgba(0,255,160,0.38))
+      drop-shadow(0 0 30px rgba(0,255,160,0.24))
+      saturate(1.45) contrast(1.18);
+  }
+  45%{
+    transform: scale(1.03) translateY(-4px);
+    opacity: 1;
+  }
+  100%{
+    transform: scale(1) translateY(0);
+  }
 }
 
-/* LOSS: quick hurt shake */
+/* LOSS REACTION: shake */
 .vg.hurtShake{
-  animation: vgHurt 0.4s;
+  animation: vgHurt 0.45s linear 1;
 }
 
 @keyframes vgHurt{
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-3px); }
-  100% { transform: translateX(0); }
+  0%{ transform: translateX(0) }
+  20%{ transform: translateX(-3px) }
+  40%{ transform: translateX(3px) }
+  60%{ transform: translateX(-2px) }
+  80%{ transform: translateX(2px) }
+  100%{ transform: translateX(0) }
 }
