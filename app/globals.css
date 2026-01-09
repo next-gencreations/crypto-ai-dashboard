@@ -288,3 +288,82 @@ html, body {
   .pip-petbox{ height: 520px; }
   .pip-stats{ grid-template-columns: 1fr 1fr; }
 }
+
+/* =========================================================
+   ✅ VAULT GIRL ANIMATION (PNG)
+   Add className="vg ..." to your <img>
+   ========================================================= */
+
+.vg{
+  will-change: transform, filter, opacity;
+  transform-origin: center;
+  animation: vgFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 18px rgba(0,255,0,0.65));
+  user-select: none;
+}
+
+@keyframes vgFloat{
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* HEALTH STATES */
+.vg.low{
+  filter: drop-shadow(0 0 10px rgba(0,255,0,0.35));
+  opacity: 0.85;
+}
+
+.vg.critical{
+  animation: vgCritical 0.9s infinite;
+  filter: drop-shadow(0 0 6px rgba(0,255,0,0.25)) saturate(0.85);
+  opacity: 0.75;
+}
+
+@keyframes vgCritical{
+  0% { transform: translateY(0) rotate(-0.6deg); }
+  50% { transform: translateY(-4px) rotate(0.6deg); }
+  100% { transform: translateY(0) rotate(-0.6deg); }
+}
+
+/* ZOMBIE MODE (health <= 0) */
+.vg.zombie{
+  animation: vgZombie 1.2s infinite;
+  filter: grayscale(0.65) hue-rotate(110deg) brightness(0.75)
+          drop-shadow(0 0 10px rgba(120,255,120,0.25));
+  opacity: 0.65;
+}
+
+@keyframes vgZombie{
+  0% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-2px) rotate(1.5deg); }
+  100% { transform: translateY(0) rotate(-1.5deg); }
+}
+
+/* WIN: excited static burst */
+.vg.feedStatic{
+  animation: vgStatic 0.7s steps(2, end);
+  filter: drop-shadow(0 0 26px rgba(0,255,0,0.95)) contrast(1.25) saturate(1.35);
+}
+
+@keyframes vgStatic{
+  0%   { transform: translate(0,0) scale(1); }
+  15%  { transform: translate(-2px,1px) scale(1.02); }
+  30%  { transform: translate(2px,-1px) scale(1.03); }
+  45%  { transform: translate(-1px,-2px) scale(1.02); }
+  60%  { transform: translate(1px,2px) scale(1.03); }
+  75%  { transform: translate(-2px,0px) scale(1.01); }
+  100% { transform: translate(0,0) scale(1); }
+}
+
+/* LOSS: quick hurt shake */
+.vg.hurtShake{
+  animation: vgHurt 0.4s;
+}
+
+@keyframes vgHurt{
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
