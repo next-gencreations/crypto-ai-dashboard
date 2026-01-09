@@ -1,7 +1,7 @@
 // app/components/VaultGirlSVG.js
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 export default function VaultGirlSVG({
   mood = "cryo",
@@ -12,8 +12,6 @@ export default function VaultGirlSVG({
   lastPnl = 0,
   isTrading = false,
   showDebugTag = false,
-
-  // Optional: you can pass imgSrc="/something.png"
   imgSrc = "",
 }) {
   const H = clampNum(health, 0, 100, 100);
@@ -24,17 +22,20 @@ export default function VaultGirlSVG({
   const ringState = useMemo(() => {
     const s = String(stage || "").toLowerCase();
     const m = String(mood || "").toLowerCase();
+    if (H <= 5) return "DEAD";
+    if (H <= 20) return "ZOMBIE";
     if (s.includes("cryo") || m.includes("cryo")) return "CRYO";
     if (m.includes("panic") || m.includes("angry") || m.includes("alert")) return "ALERT";
     return "ACTIVE";
-  }, [stage, mood]);
+  }, [stage, mood, H]);
 
   const statusText = useMemo(() => {
+    if (H <= 5) return "OFFLINE";
     if (!TRADING) return "IDLE";
     if (PNL > 0) return "TRADING · PROFIT";
     if (PNL < 0) return "TRADING · LOSS";
     return "TRADING · ACTIVE";
-  }, [TRADING, PNL]);
+  }, [TRADING, PNL, H]);
 
   const pulseSpeed = useMemo(() => {
     const base = TRADING ? 1.15 : 1.9;
@@ -49,43 +50,6 @@ export default function VaultGirlSVG({
     return clampNum(base + tradeBoost, 0.5, 1.35, 0.95);
   }, [H, TRADING]);
 
-  // Health -> CSS class (zombie at 20)
-  const healthClass = useMemo(() => {
-    if (H <= 20) return "zombie";
-    if (H <= 35) return "critical";
-    if (H <= 60) return "low";
-    return "";
-  }, [H]);
-
-  // Win/loss burst classes
-  const [burstClass, setBurstClass] = useState("");
-  const prevPnlRef = useRef(null);
-
-  useEffect(() => {
-    // Ignore first render so it doesn't "burst" on load
-    if (prevPnlRef.current === null) {
-      prevPnlRef.current = PNL;
-      return;
-    }
-
-    // Only trigger if pnl meaningfully changes
-    const prev = prevPnlRef.current;
-    prevPnlRef.current = PNL;
-
-    // If we are zombie, we still allow shake/static but the zombie look dominates
-    if (PNL > 0 && prev <= 0) {
-      setBurstClass("feedStatic");
-      const t = setTimeout(() => setBurstClass(""), 750);
-      return () => clearTimeout(t);
-    }
-
-    if (PNL < 0 && prev >= 0) {
-      setBurstClass("hurtShake");
-      const t = setTimeout(() => setBurstClass(""), 450);
-      return () => clearTimeout(t);
-    }
-  }, [PNL]);
-
   const accentStroke =
     PNL < 0 ? "var(--pip-down, rgba(255,80,80,0.95))" : "var(--pip-up, rgba(0,255,160,0.95))";
   const accentFill =
@@ -93,10 +57,7 @@ export default function VaultGirlSVG({
       ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
       : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  /**
-   * Robust image loading:
-   * - Reference by URL path and test-load in browser.
-   */
+  // Image loading candidates
   const candidates = useMemo(() => {
     const list = [];
     const cleaned = String(imgSrc || "").trim();
@@ -106,7 +67,6 @@ export default function VaultGirlSVG({
   }, [imgSrc]);
 
   const [resolvedSrc, setResolvedSrc] = useState("");
-
   useEffect(() => {
     let cancelled = false;
     const bust = `v=${Date.now()}`;
@@ -135,14 +95,50 @@ export default function VaultGirlSVG({
     };
   }, [candidates]);
 
-  const imgClassName = useMemo(() => {
-    // base + health state + burst
-    // Example: "vg critical hurtShake"
+  // ✅ Burst reactions when pnl changes (win/loss)
+  const [burstClass, setBurstClass] = useState("");
+  const [prevPnl, setPrevPnl] = useState(null);
+
+  useEffect(() => {
+    // Don’t burst if “dead”
+    if (H <= 5) return;
+
+    if (prevPnl === null) {
+      setPrevPnl(PNL);
+      return;
+    }
+
+    // Only react when pnl changes and is non-zero
+    if (PNL !== prevPnl && PNL !== 0) {
+      const cls = PNL > 0 ? "feedStatic" : "hurtShake";
+      setBurstClass(cls);
+
+      const t = setTimeout(() => setBurstClass(""), 850);
+      setPrevPnl(PNL);
+      return () => clearTimeout(t);
+    }
+
+    setPrevPnl(PNL);
+  }, [PNL, H, prevPnl]);
+
+  // ✅ Health state classes
+  const healthClass = useMemo(() => {
+    if (H <= 5) return "dead";
+    if (H <= 20) return "zombie";
+    if (H <= 35) return "critical criticalGlitch";
+    if (H < 60) return "low weakGlitch";
+    return "";
+  }, [H]);
+
+  const wrapperClass = useMemo(() => {
+    // vg is the base
+    // burstClass is feedStatic / hurtShake
+    // healthClass adds low/critical/zombie/dead + glitch
     return ["vg", healthClass, burstClass].filter(Boolean).join(" ");
   }, [healthClass, burstClass]);
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }} className={wrapperClass}>
       <svg viewBox="0 0 520 520" width="100%" height="100%" role="img" aria-label="Vault Girl hologram companion">
         <defs>
           <filter id="pipGlow" x="-45%" y="-45%" width="190%" height="190%">
@@ -150,6 +146,23 @@ export default function VaultGirlSVG({
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <filter id="holoTint" x="-40%" y="-40%" width="180%" height="180%">
+            <feColorMatrix
+              type="matrix"
+              values="
+                0.10 0.00 0.00 0.00 0.00
+                0.00 1.45 0.00 0.00 0.00
+                0.00 0.00 0.25 0.00 0.00
+                0.00 0.00 0.00 1.00 0.00"
+              result="tinted"
+            />
+            <feGaussianBlur in="tinted" stdDeviation="2.6" result="soft" />
+            <feMerge>
+              <feMergeNode in="soft" />
+              <feMergeNode in="tinted" />
             </feMerge>
           </filter>
 
@@ -225,41 +238,27 @@ export default function VaultGirlSVG({
         <g clipPath="url(#portraitClip)">
           <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
 
-          {/* Aura behind the figure */}
+          {/* Aura */}
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {/* ✅ PNG as real <img> so CSS animations work */}
+          {/* Image or fallback */}
           {resolvedSrc ? (
-            <foreignObject x="70" y="96" width="380" height="350">
-              <div
-                xmlns="http://www.w3.org/1999/xhtml"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "transparent",
-                }}
-              >
-                <img
-                  src={resolvedSrc}
-                  alt="Vault Girl"
-                  className={imgClassName}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-              </div>
-            </foreignObject>
+            <image
+              href={resolvedSrc}
+              x="70"
+              y="96"
+              width="380"
+              height="350"
+              preserveAspectRatio="xMidYMid meet"
+              filter="url(#holoTint)"
+              opacity="0.98"
+            />
           ) : (
             <FemaleHoloFallback />
           )}
 
           {/* Trading shimmer */}
-          {TRADING && (
+          {TRADING && H > 5 && (
             <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.7">
               <animateTransform attributeName="transform" type="translate" from="0 0" to="760 0" dur="2.2s" repeatCount="indefinite" />
             </rect>
@@ -269,7 +268,7 @@ export default function VaultGirlSVG({
           <rect x="70" y="96" width="380" height="350" fill="url(#scan)" opacity="0.55" />
 
           {/* Trading rings */}
-          {TRADING && (
+          {TRADING && H > 5 && (
             <g opacity="0.85">
               <circle cx="260" cy="260" r="150" fill="none" stroke={accentStroke} strokeWidth="3" opacity="0.35">
                 <animate attributeName="opacity" values="0.10;0.55;0.10" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
@@ -288,12 +287,11 @@ export default function VaultGirlSVG({
           </text>
         </g>
 
-        {/* vignette */}
         <rect x="46" y="46" width="428" height="428" rx="24" fill="url(#vignette)" opacity="0.55" />
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            mood={String(mood)} stage={String(stage)} img={resolvedSrc ? "OK" : "FALLBACK"} class={imgClassName}
+            mood={String(mood)} stage={String(stage)} img={resolvedSrc ? "OK" : "FALLBACK"} burst={burstClass || "-"}
           </text>
         )}
       </svg>
@@ -301,9 +299,6 @@ export default function VaultGirlSVG({
   );
 }
 
-/**
- * Female hologram fallback (used when image doesn’t load).
- */
 function FemaleHoloFallback() {
   return (
     <g opacity="0.95">
