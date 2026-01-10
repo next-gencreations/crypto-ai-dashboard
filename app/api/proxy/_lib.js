@@ -2,14 +2,21 @@
 
 export function getUpstreamBase() {
   const base = (process.env.API_URL || "").replace(/\/+$/, "");
-  if (!base) {
-    throw new Error("Missing API_URL environment variable in Vercel project settings.");
-  }
+
+  // IMPORTANT:
+  // During Vercel build/prerender, env vars may not be available.
+  // Don't throw here—return null so the route can respond gracefully.
+  if (!base) return null;
+
   return base;
 }
 
 export async function proxyGet(path) {
   const base = getUpstreamBase();
+  if (!base) {
+    return { ok: false, error: "API_URL not configured (missing in Vercel env vars)" };
+  }
+
   const url = `${base}${path}`;
 
   const res = await fetch(url, {
@@ -19,6 +26,7 @@ export async function proxyGet(path) {
   });
 
   const txt = await res.text().catch(() => "");
+
   if (!res.ok) {
     return {
       ok: false,
@@ -42,6 +50,10 @@ export async function proxyGet(path) {
 
 export async function proxyPost(path, body) {
   const base = getUpstreamBase();
+  if (!base) {
+    return { ok: false, error: "API_URL not configured (missing in Vercel env vars)" };
+  }
+
   const url = `${base}${path}`;
 
   const res = await fetch(url, {
@@ -55,6 +67,7 @@ export async function proxyPost(path, body) {
   });
 
   const txt = await res.text().catch(() => "");
+
   if (!res.ok) {
     return {
       ok: false,
