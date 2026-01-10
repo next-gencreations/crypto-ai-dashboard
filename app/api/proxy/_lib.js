@@ -1,4 +1,5 @@
 // app/api/proxy/_lib.js
+
 export function getUpstreamBase() {
   const base = (process.env.API_URL || "").replace(/\/+$/, "");
   if (!base) {
