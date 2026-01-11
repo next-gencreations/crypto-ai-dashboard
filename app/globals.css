@@ -22,6 +22,43 @@ html, body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
+/* =======================================================
+   ✅ GLOBAL OVERFLOW FIXES (NEW)
+   - Prevents timestamps/URLs/JSON from running off-screen
+   ======================================================= */
+
+/* Apply safe wrapping everywhere by default */
+*{
+  box-sizing: border-box;
+}
+
+.pip-crt,
+.pip-shell,
+.pip-panel,
+.pip-topbar,
+.pip-row,
+.pip-grid{
+  max-width: 100%;
+}
+
+.wrap-anywhere{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Keep long strings inside code blocks from breaking layout */
+pre, code{
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+/* If any panel contains long content, don’t let it create sideways scroll */
+.pip-panel{
+  overflow-x: hidden;
+}
+
 /* CRT wrapper */
 .pip-crt{
   min-height: 100vh;
@@ -44,6 +81,9 @@ html, body {
   border-radius: 18px;
   padding: 14px;
   box-shadow: 0 0 0 1px rgba(119,255,154,0.06) inset;
+
+  /* ✅ allow the right badge/time blocks to wrap on mobile */
+  flex-wrap: wrap;
 }
 
 .pip-title{
@@ -60,7 +100,17 @@ html, body {
   letter-spacing: 0.08em;
 }
 
+/* Existing wrap class kept */
 .wrap{
+  word-break: break-word;
+  overflow-wrap: anywhere; /* ✅ added */
+}
+
+/* ✅ Helpful when you render heartbeat/time in a tight row */
+.pip-sub,
+.pip-badge{
+  max-width: 100%;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -125,6 +175,9 @@ html, body {
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(119,255,154,0.10);
+
+  /* ✅ prevent long values pushing row off-screen */
+  flex-wrap: wrap;
 }
 
 .pip-row:last-child{
@@ -146,6 +199,11 @@ html, body {
   font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.06em;
+
+  /* ✅ ensure heartbeat/time wrap instead of overflow */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .pip-v-big{
@@ -157,6 +215,13 @@ html, body {
   display:grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+/* ✅ mobile: turn 2 columns into 1 to avoid cramped overflow */
+@media (max-width: 640px){
+  .pip-grid{
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== Vault Companion ===== */
@@ -223,6 +288,9 @@ html, body {
   border-radius: 16px;
   border: 1px solid rgba(119,255,154,0.14);
   background: rgba(0,0,0,0.16);
+
+  /* ✅ allow long values to wrap */
+  flex-wrap: wrap;
 }
 
 .pip-muted{
@@ -239,11 +307,13 @@ html, body {
 .pip-code{
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   background: rgba(0,0,0,0.18);
   border: 1px solid rgba(119,255,154,0.12);
   border-radius: 14px;
   padding: 12px;
   overflow:auto;
+  max-width: 100%;
 }
 
 /* =========================
@@ -279,6 +349,14 @@ html, body {
   .pip-link{
     padding: 10px 12px;
     border-radius: 14px;
+  }
+
+  .pip-title{
+    font-size: 36px;
+  }
+
+  .pip-badge{
+    padding: 9px 10px;
   }
 }
 
