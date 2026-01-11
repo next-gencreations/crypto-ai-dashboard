@@ -27,9 +27,26 @@ function normalizeCandles(raw) {
     .filter(Boolean);
 }
 
+function fmt(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  // compact-ish formatting
+  if (x >= 1000) return x.toFixed(1);
+  if (x >= 100) return x.toFixed(2);
+  return x.toFixed(3);
+}
+
+/**
+ * Real candlestick SVG chart (mobile friendly)
+ * - thicker candle bodies
+ * - proper wicks
+ * - grid + last price line
+ * - auto reduces candle count on narrow screens so it doesn't become "dots"
+ */
 function CandleChart({ candles, height = 360 }) {
   const containerRef = useRef(null);
   const [w, setW] = useState(520);
+
   const h = height;
 
   useEffect(() => {
@@ -57,9 +74,8 @@ function CandleChart({ candles, height = 360 }) {
     };
   }, []);
 
-  const data = (candles || []).slice(-200);
-
-  if (data.length < 2) {
+  const all = Array.isArray(candles) ? candles : [];
+  if (all.length < 2) {
     return (
       <div style={{ height: h, display: "grid", placeItems: "center", opacity: 0.8 }}>
         NO CANDLES YET
@@ -67,34 +83,133 @@ function CandleChart({ candles, height = 360 }) {
     );
   }
 
+  // ✅ Pick a candle count that still looks like a real chart on small screens
+  // Target body width around 6–10px.
+  const PAD_L = 52;
+  const PAD_R = 16;
+  const PAD_T = 14;
+  const PAD_B = 26;
+
+  const innerW = Math.max(1, w - PAD_L - PAD_R);
+
+  // Start with up to 200, but reduce if too tight
+  const hardMax = 200;
+  const maxC = Math.min(hardMax, all.length);
+
+  // If we show maxC candles, what's the step?
+  // If step is tiny, it becomes dots.
+  const stepIfMax = innerW / maxC;
+
+  // Minimum step desired to make bodies visible
+  const minStep = w < 430 ? 5.4 : 4.6; // mobile vs larger
+  const targetCount = Math.max(40, Math.floor(innerW / minStep));
+  const count = Math.min(maxC, targetCount);
+
+  const data = all.slice(-count);
+
+  // Y scale
   const highs = data.map((c) => c.h);
   const lows = data.map((c) => c.l);
+
   const maxY0 = Math.max(...highs);
   const minY0 = Math.min(...lows);
 
-  const range = maxY0 - minY0;
+  const range = maxY0 - minY0 || 1;
   const pad = Math.max(range * 0.08, maxY0 * 0.0005, 0.5);
+
   const yMax = maxY0 + pad;
   const yMin = minY0 - pad;
   const denom = yMax - yMin || 1;
 
   const toY = (y) => {
     const t = (y - yMin) / denom;
-    return h - 12 - t * (h - 24);
+    return PAD_T + (1 - t) * (h - PAD_T - PAD_B);
   };
 
-  const innerW = w - 24;
+  // Candle geometry
   const step = innerW / data.length;
-  const bw = Math.max(2, Math.min(6, step * 0.55));
+
+  // ✅ Make the body width feel real:
+  // Keep a min body width, let it grow, cap it.
+  const bw = Math.max(5, Math.min(12, step * 0.72));
+  const wickW = Math.max(1.2, Math.min(2.0, bw * 0.18));
+
+  // Grid lines
+  const gridLines = 4;
+  const yTicks = Array.from({ length: gridLines + 1 }, (_, i) => i / gridLines);
+
+  // Last price line
+  const lastClose = data[data.length - 1]?.c;
+  const yLast = toY(lastClose);
 
   return (
     <div ref={containerRef} style={{ width: "100%" }}>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-        <line x1="12" y1={h - 12} x2={w - 12} y2={h - 12} stroke="rgba(119,255,154,0.18)" />
-        <line x1="12" y1={h / 2} x2={w - 12} y2={h / 2} stroke="rgba(119,255,154,0.10)" />
+        {/* Background faint frame */}
+        <rect
+          x="0"
+          y="0"
+          width={w}
+          height={h}
+          fill="rgba(0,0,0,0.0)"
+          stroke="rgba(119,255,154,0.10)"
+          strokeWidth="1"
+          rx="12"
+        />
 
+        {/* Horizontal grid */}
+        {yTicks.map((t, idx) => {
+          const y = PAD_T + t * (h - PAD_T - PAD_B);
+          const val = yMax - t * (yMax - yMin);
+          return (
+            <g key={`gy-${idx}`}>
+              <line
+                x1={PAD_L}
+                y1={y}
+                x2={w - PAD_R}
+                y2={y}
+                stroke={idx === yTicks.length - 1 ? "rgba(119,255,154,0.18)" : "rgba(119,255,154,0.09)"}
+                strokeWidth={idx === yTicks.length - 1 ? 1.2 : 1}
+              />
+              {/* Y-axis labels */}
+              <text
+                x={PAD_L - 8}
+                y={y + 4}
+                textAnchor="end"
+                fontSize="11"
+                fill="rgba(119,255,154,0.65)"
+                style={{ fontFamily: "ui-monospace, Menlo, Monaco, Consolas, monospace" }}
+              >
+                {fmt(val)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Last price line */}
+        <line
+          x1={PAD_L}
+          y1={yLast}
+          x2={w - PAD_R}
+          y2={yLast}
+          stroke="rgba(119,255,154,0.22)"
+          strokeWidth="1.2"
+          strokeDasharray="4 4"
+        />
+        <text
+          x={w - PAD_R}
+          y={yLast - 6}
+          textAnchor="end"
+          fontSize="11"
+          fill="rgba(119,255,154,0.75)"
+          style={{ fontFamily: "ui-monospace, Menlo, Monaco, Consolas, monospace" }}
+        >
+          {fmt(lastClose)}
+        </text>
+
+        {/* Candles */}
         {data.map((c, i) => {
-          const xCenter = 12 + i * step + step / 2;
+          const xCenter = PAD_L + i * step + step / 2;
 
           const yO = toY(c.o);
           const yC = toY(c.c);
@@ -103,16 +218,31 @@ function CandleChart({ candles, height = 360 }) {
 
           const up = c.c >= c.o;
 
-          const stroke = up ? "rgba(0,255,160,0.95)" : "rgba(255,80,80,0.95)";
-          const fill = up ? "rgba(0,255,160,0.22)" : "rgba(255,80,80,0.22)";
+          // Use your theme colors
+          const stroke = up ? "var(--pip-up)" : "var(--pip-down)";
+          const fill = up ? "var(--pip-up-fill)" : "var(--pip-down-fill)";
 
           const bodyTop = Math.min(yO, yC);
           const bodyBot = Math.max(yO, yC);
-          const bodyH = Math.max(6, bodyBot - bodyTop);
+
+          // ✅ allow thin candles but not invisible
+          const bodyH = Math.max(2.2, bodyBot - bodyTop);
 
           return (
             <g key={`${c.t}-${i}`}>
-              <line x1={xCenter} y1={yH} x2={xCenter} y2={yL} stroke={stroke} strokeWidth="1.4" />
+              {/* Wick */}
+              <line
+                x1={xCenter}
+                y1={yH}
+                x2={xCenter}
+                y2={yL}
+                stroke={stroke}
+                strokeWidth={wickW}
+                strokeLinecap="round"
+                opacity="0.95"
+              />
+
+              {/* Body */}
               <rect
                 x={xCenter - bw / 2}
                 y={bodyTop}
@@ -120,8 +250,8 @@ function CandleChart({ candles, height = 360 }) {
                 height={bodyH}
                 fill={fill}
                 stroke={stroke}
-                strokeWidth="1.2"
-                rx="1"
+                strokeWidth="1.4"
+                rx="1.4"
               />
             </g>
           );
@@ -166,7 +296,6 @@ async function fetchJson(url, signal) {
 }
 
 export default function CandlesPage() {
-  // display-only
   const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
   const [err, setErr] = useState("");
@@ -190,7 +319,6 @@ export default function CandlesPage() {
       : `${Math.floor(intervalSec / 60)}M`;
 
   async function fetchAll(signal) {
-    // ✅ Use SAME-ORIGIN proxy (like Home)
     const dataUrl = `/api/proxy/data`;
     const ohlcUrl = `/api/proxy/ohlc?market=${encodeURIComponent(market)}&interval=${intervalSec}&limit=600`;
 
@@ -290,10 +418,10 @@ export default function CandlesPage() {
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button className={`pip-link ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)}>1M</button>
-                <button className={`pip-link ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)}>5M</button>
-                <button className={`pip-link ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)}>15M</button>
-                <button className={`pip-link ${intervalSec === 3600 ? "active" : ""}`} onClick={() => setIntervalSec(3600)}>1H</button>
+                <button className={`pip-link ${intervalSec === 60 ? "active" : ""}`} onClick={() => setIntervalSec(60)} type="button">1M</button>
+                <button className={`pip-link ${intervalSec === 300 ? "active" : ""}`} onClick={() => setIntervalSec(300)} type="button">5M</button>
+                <button className={`pip-link ${intervalSec === 900 ? "active" : ""}`} onClick={() => setIntervalSec(900)} type="button">15M</button>
+                <button className={`pip-link ${intervalSec === 3600 ? "active" : ""}`} onClick={() => setIntervalSec(3600)} type="button">1H</button>
               </div>
             </div>
 
@@ -302,7 +430,7 @@ export default function CandlesPage() {
             </div>
 
             <div className="pip-muted" style={{ marginTop: 10 }}>
-              Shows 200 candles. Green = up, Red = down. Flat candles are drawn with a minimum body height so you can still see them.
+              Shows a mobile-optimized window of recent candles (up to 200). Green = up, Red = down.
             </div>
           </div>
         </div>
