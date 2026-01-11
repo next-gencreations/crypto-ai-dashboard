@@ -93,11 +93,16 @@ pre, code{
   font-weight: 900;
 }
 
+/* ✅ UPDATE: subtitle smaller + cleaner + less height */
 .pip-sub{
-  margin-top: 8px;
-  opacity: 0.78;
-  font-size: 14px;
-  letter-spacing: 0.08em;
+  margin-top: 6px;                 /* was 8px */
+  opacity: 0.72;                   /* slightly dimmer */
+  font-size: 12px;                 /* was 14px */
+  letter-spacing: 0.06em;          /* was 0.08em */
+  line-height: 1.25;               /* tighter */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Existing wrap class kept */
@@ -121,6 +126,8 @@ pre, code{
   padding: 10px 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
+  font-size: 12px;                /* ✅ update: slightly smaller */
+  line-height: 1;                 /* ✅ keeps it compact */
 }
 
 /* ===== Nav ===== */
@@ -355,8 +362,15 @@ pre, code{
     font-size: 36px;
   }
 
+  /* ✅ keep badge compact on small screens */
   .pip-badge{
-    padding: 9px 10px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  /* ✅ reduce topbar padding slightly on small screens */
+  .pip-topbar{
+    padding: 12px;
   }
 }
 
