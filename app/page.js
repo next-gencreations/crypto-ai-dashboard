@@ -330,7 +330,10 @@ export default function HomePage() {
         <div className="pip-topbar">
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
-            <div className="pip-sub wrap">{subtitle}</div>
+            {/* ✅ allow long URLs/time strings to wrap on mobile */}
+            <div className="pip-sub wrap-anywhere" title={subtitle}>
+              {subtitle}
+            </div>
           </div>
           <div className="pip-topbar-right">
             <div className="pip-badge">CSS LOADED</div>
@@ -371,7 +374,7 @@ export default function HomePage() {
           <div className="pip-content">
             <div className="pip-panel">
               <div className="pip-heading">ERROR</div>
-              <div className="wrap">{err}</div>
+              <div className="wrap-anywhere">{err}</div>
             </div>
           </div>
         )}
@@ -384,7 +387,7 @@ export default function HomePage() {
 
                 <div className="pip-row pip-row-top">
                   <div className="pip-k">MARKETS</div>
-                  <div className="pip-v pip-v-big">
+                  <div className="pip-v pip-v-big wrap-anywhere" title={markets.join(", ")}>
                     {markets.length ? markets.join(", ") : "BTCUSDT, ETHUSDT"}
                   </div>
                 </div>
@@ -404,7 +407,10 @@ export default function HomePage() {
                   <div>
                     <div className="pip-row">
                       <div className="pip-k">LAST HEARTBEAT</div>
-                      <div className="pip-v">{heartbeat || "—"}</div>
+                      {/* ✅ wrap long time strings */}
+                      <div className="pip-v wrap-anywhere" title={heartbeat || ""}>
+                        {heartbeat || "—"}
+                      </div>
                     </div>
                     <div className="pip-row">
                       <div className="pip-k">EQUITY</div>
@@ -447,7 +453,7 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  <div className="pip-muted" style={{ marginTop: 8 }}>
+                  <div className="pip-muted wrap-anywhere" style={{ marginTop: 8 }}>
                     Current: £{Number.isFinite(bankrollGbp) ? bankrollGbp.toFixed(2) : "—"}{" "}
                     {Number.isFinite(bankrollUsd) ? `(≈ $${bankrollUsd.toFixed(2)})` : ""}
                     {Number.isFinite(gbpusdRate) ? ` • Rate: ${gbpusdRate.toFixed(4)}` : ""}
@@ -508,7 +514,10 @@ export default function HomePage() {
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">UPDATED</div>
-                      <div className="pip-v">{String(companion.updated || "—")}</div>
+                      {/* ✅ wrap long ISO timestamps */}
+                      <div className="pip-v wrap-anywhere" title={String(companion.updated || "")}>
+                        {String(companion.updated || "—")}
+                      </div>
                     </div>
                   </div>
                 </div>
