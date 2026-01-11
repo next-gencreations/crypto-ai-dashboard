@@ -23,13 +23,18 @@ html, body {
 }
 
 /* =======================================================
-   ✅ GLOBAL OVERFLOW FIXES (NEW)
+   ✅ GLOBAL OVERFLOW FIXES
    - Prevents timestamps/URLs/JSON from running off-screen
    ======================================================= */
 
-/* Apply safe wrapping everywhere by default */
 *{
   box-sizing: border-box;
+}
+
+/* Use on any element that renders long values (urls/timestamps/json) */
+.wrap-anywhere{
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .pip-crt,
@@ -39,11 +44,6 @@ html, body {
 .pip-row,
 .pip-grid{
   max-width: 100%;
-}
-
-.wrap-anywhere{
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 /* Keep long strings inside code blocks from breaking layout */
@@ -82,7 +82,7 @@ pre, code{
   padding: 14px;
   box-shadow: 0 0 0 1px rgba(119,255,154,0.06) inset;
 
-  /* ✅ allow the right badge/time blocks to wrap on mobile */
+  /* ✅ allow right badge/time blocks to wrap on mobile */
   flex-wrap: wrap;
 }
 
@@ -103,10 +103,10 @@ pre, code{
 /* Existing wrap class kept */
 .wrap{
   word-break: break-word;
-  overflow-wrap: anywhere; /* ✅ added */
+  overflow-wrap: anywhere;
 }
 
-/* ✅ Helpful when you render heartbeat/time in a tight row */
+/* Helpful when rendering heartbeat/time in tight spaces */
 .pip-sub,
 .pip-badge{
   max-width: 100%;
@@ -562,8 +562,4 @@ pre, code{
   );
   mix-blend-mode: screen;
   opacity: 0.45;
-}
-.wrap-anywhere{
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
