@@ -563,3 +563,7 @@ pre, code{
   mix-blend-mode: screen;
   opacity: 0.45;
 }
+.wrap-anywhere{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
