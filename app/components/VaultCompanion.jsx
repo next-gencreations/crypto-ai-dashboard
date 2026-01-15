@@ -22,25 +22,23 @@ export default function VaultCompanion({
     return String(sex || "girl").toLowerCase().includes("boy") ? "vaultboy" : "vaultgirl";
   }, [sex]);
 
+  // ✅ Your folders are /public/companion/vaultgirl and /public/companion/vaultboy
   const folder = useMemo(() => `/companion/${baseKey}`, [baseKey]);
 
-  // Decide which of the 8 images to show
+  // ✅ Map current bot state to one of your 8 images
   const portraitState = useMemo(() => {
     const m = String(mood || "").toLowerCase();
     const s = String(stage || "").toLowerCase();
 
-    // hard health states first
     if (H <= 5) return "zombie";
     if (H <= 20) return "zomple";
     if (s.includes("cryo") || m.includes("cryo")) return "cryo";
 
-    // mood keywords
     if (m.includes("sick")) return "sick";
     if (m.includes("weak") || m.includes("tired") || m.includes("low")) return "weak";
     if (m.includes("happy")) return "happy";
     if (m.includes("thriv") || m.includes("strong") || m.includes("great")) return "thriving";
 
-    // fallback based on trading + health
     if (H < 35) return "sick";
     if (H < 60) return "weak";
     if (TRADING && PNL > 0) return "thriving";
@@ -86,7 +84,7 @@ export default function VaultCompanion({
       ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
       : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  // ✅ Use your existing filenames WITH the double-dot: "..png"
+  // ✅ IMPORTANT: your files really are "..png"
   const candidates = useMemo(() => {
     const primary = `${folder}/${baseKey}_${portraitState}..png`;
     const fallback = `${folder}/${baseKey}_idle..png`;
@@ -123,43 +121,8 @@ export default function VaultCompanion({
     };
   }, [candidates]);
 
-  // Burst reactions when pnl changes (win/loss)
-  const [burstClass, setBurstClass] = useState("");
-  const [prevPnl, setPrevPnl] = useState(null);
-
-  useEffect(() => {
-    if (H <= 5) return;
-
-    if (prevPnl === null) {
-      setPrevPnl(PNL);
-      return;
-    }
-
-    if (PNL !== prevPnl && PNL !== 0) {
-      const cls = PNL > 0 ? "feedStatic" : "hurtShake";
-      setBurstClass(cls);
-      const t = setTimeout(() => setBurstClass(""), 850);
-      setPrevPnl(PNL);
-      return () => clearTimeout(t);
-    }
-
-    setPrevPnl(PNL);
-  }, [PNL, H, prevPnl]);
-
-  const healthClass = useMemo(() => {
-    if (H <= 5) return "dead";
-    if (H <= 20) return "zombie";
-    if (H <= 35) return "critical criticalGlitch";
-    if (H < 60) return "low weakGlitch";
-    return "";
-  }, [H]);
-
-  const wrapperClass = useMemo(() => {
-    return ["vg", healthClass, burstClass].filter(Boolean).join(" ");
-  }, [healthClass, burstClass]);
-
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }} className={wrapperClass}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <svg viewBox="0 0 520 520" width="100%" height="100%" role="img" aria-label="Vault companion hologram">
         <defs>
           <filter id="pipGlow" x="-45%" y="-45%" width="190%" height="190%">
@@ -193,24 +156,9 @@ export default function VaultCompanion({
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
 
-          <radialGradient id="vignette" cx="50%" cy="48%" r="80%">
-            <stop offset="60%" stopColor="rgba(0,0,0,0)" />
-            <stop offset="100%" stopColor="rgba(0,0,0,0.65)" />
-          </radialGradient>
-
           <pattern id="scan" width="6" height="6" patternUnits="userSpaceOnUse">
             <rect x="0" y="0" width="6" height="1" fill="rgba(120,255,170,0.07)" />
           </pattern>
-
-          <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.1" fill="rgba(120,255,170,0.10)" />
-          </pattern>
-
-          <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="50%" stopColor="rgba(200,255,230,0.22)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-          </linearGradient>
 
           <clipPath id="portraitClip">
             <rect x="70" y="96" width="380" height="350" rx="22" />
@@ -218,11 +166,9 @@ export default function VaultCompanion({
         </defs>
 
         <rect x="0" y="0" width="520" height="520" fill="rgba(0,0,0,0.06)" />
-        <rect x="0" y="0" width="520" height="520" fill="url(#dots)" opacity="0.35" />
 
         <g filter="url(#pipGlow)">
           <rect x="26" y="26" width="468" height="468" rx="28" fill="rgba(0,0,0,0.22)" stroke="rgba(120,255,170,0.30)" strokeWidth="2" />
-          <rect x="46" y="46" width="428" height="428" rx="24" fill="rgba(0,0,0,0.16)" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
         </g>
 
         <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
@@ -250,13 +196,9 @@ export default function VaultCompanion({
               opacity="0.98"
             />
           ) : (
-            <FallbackPortrait label={baseKey} />
-          )}
-
-          {TRADING && H > 5 && (
-            <rect x="-120" y="96" width="160" height="350" fill="url(#shimmer)" opacity="0.7">
-              <animateTransform attributeName="transform" type="translate" from="0 0" to="760 0" dur="2.2s" repeatCount="indefinite" />
-            </rect>
+            <text x="260" y="260" textAnchor="middle" fill="rgba(170,255,210,0.75)" fontSize="14">
+              IMAGE NOT FOUND
+            </text>
           )}
 
           <rect x="70" y="96" width="380" height="350" fill="url(#scan)" opacity="0.55" />
@@ -273,42 +215,13 @@ export default function VaultCompanion({
           )}
         </g>
 
-        <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
-          <text x="58" y="468" fontSize="12" fill="rgba(120,255,170,0.78)" letterSpacing="2">
-            POS: {POS} · HEALTH: {H.toFixed(0)}% · PNL: {PNL > 0 ? "+" : ""}{PNL.toFixed(2)}
-          </text>
-        </g>
-
-        <rect x="46" y="46" width="428" height="428" rx="24" fill="url(#vignette)" opacity="0.55" />
-
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            sex={baseKey} state={portraitState} img={resolvedSrc ? "OK" : "FALLBACK"}
+            sex={baseKey} state={portraitState} src={resolvedSrc ? "OK" : "FAIL"}
           </text>
         )}
       </svg>
     </div>
-  );
-}
-
-function FallbackPortrait({ label = "vaultgirl" }) {
-  return (
-    <g opacity="0.95">
-      <circle cx="260" cy="250" r="120" fill="rgba(120,255,170,0.14)" />
-      <circle cx="260" cy="250" r="165" fill="none" stroke="rgba(120,255,170,0.18)" strokeWidth="2" />
-      <circle cx="260" cy="250" r="135" fill="none" stroke="rgba(120,255,170,0.12)" strokeWidth="2" />
-      <text
-        x="260"
-        y="260"
-        textAnchor="middle"
-        fontSize="14"
-        style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
-        fill="rgba(170,255,210,0.75)"
-        letterSpacing="2"
-      >
-        {label.toUpperCase()}
-      </text>
-    </g>
   );
 }
 
