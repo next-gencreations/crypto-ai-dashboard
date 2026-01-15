@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import VaultGirlSVG from "./components/VaultGirlSVG";
+import VaultCompanion from "./components/VaultCompanion";
 
 const REFRESH_MS = 5000;
 const FETCH_TIMEOUT_MS = 20000;
@@ -324,6 +324,16 @@ export default function HomePage() {
   const disableDamageFx = !!err;
   const isTrading = !err && botState === "ACTIVE";
 
+  // ✅ choose sex for companion render (no guessing / safe fallback)
+  const petSex = useMemo(() => {
+    const sexFromApi = String(rawData?.pet?.sex || "").toLowerCase();
+    if (sexFromApi === "boy" || sexFromApi === "girl") return sexFromApi;
+    // fallback: infer from name if needed
+    const name = String(companion?.name || "").toUpperCase();
+    if (name.includes("BOY")) return "boy";
+    return "girl";
+  }, [rawData, companion]);
+
   return (
     <div className="pip-crt">
       <div className="pip-shell">
@@ -476,7 +486,8 @@ export default function HomePage() {
 
                 <div className="pip-companion-col">
                   <div className="pip-petbox">
-                    <VaultGirlSVG
+                    <VaultCompanion
+                      sex={petSex} // "boy" or "girl"
                       mood={companion.mood || "cryo"}
                       stage={companion.stage || "cryo"}
                       vaultNumber="13"
