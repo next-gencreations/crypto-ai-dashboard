@@ -18,11 +18,12 @@ export default function VaultCompanion({
   const PNL = num(lastPnl, 0);
   const TRADING = !!isTrading;
 
+  // "vaultboy" or "vaultgirl"
   const baseKey = useMemo(() => {
     return String(sex || "girl").toLowerCase().includes("boy") ? "vaultboy" : "vaultgirl";
   }, [sex]);
 
-  // ✅ Your folders are /public/companion/vaultgirl and /public/companion/vaultboy
+  // ✅ /public/companion/vaultgirl and /public/companion/vaultboy
   const folder = useMemo(() => `/companion/${baseKey}`, [baseKey]);
 
   // ✅ Map current bot state to one of your 8 images
@@ -30,19 +31,27 @@ export default function VaultCompanion({
     const m = String(mood || "").toLowerCase();
     const s = String(stage || "").toLowerCase();
 
-    if (H <= 5) return "zombie";
-    if (H <= 20) return "zomple";
+    // Super low health states (match your filenames)
+    if (H <= 5) return "zombie";  // vaultgirl_zombie..png / vaultboy_zombie..png
+    if (H <= 20) return "zomple"; // vaultgirl_zomple..png / vaultboy_zomple..png
+
+    // Cryo has priority
     if (s.includes("cryo") || m.includes("cryo")) return "cryo";
 
+    // Mood overrides (if you send these moods from backend)
     if (m.includes("sick")) return "sick";
     if (m.includes("weak") || m.includes("tired") || m.includes("low")) return "weak";
     if (m.includes("happy")) return "happy";
     if (m.includes("thriv") || m.includes("strong") || m.includes("great")) return "thriving";
 
+    // Health-based fallback
     if (H < 35) return "sick";
     if (H < 60) return "weak";
+
+    // Trading reaction fallback
     if (TRADING && PNL > 0) return "thriving";
     if (TRADING && PNL < 0) return "weak";
+
     return "idle";
   }, [mood, stage, H, TRADING, PNL]);
 
@@ -84,11 +93,25 @@ export default function VaultCompanion({
       ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
       : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
-  // ✅ IMPORTANT: your files really are "..png"
+  // ✅ IMPORTANT: your files really are "..png" and we keep them!
+  // Also: add extra fallback so it's harder to "IMAGE NOT FOUND"
   const candidates = useMemo(() => {
     const primary = `${folder}/${baseKey}_${portraitState}..png`;
-    const fallback = `${folder}/${baseKey}_idle..png`;
-    return Array.from(new Set([primary, fallback]));
+    const idle = `${folder}/${baseKey}_idle..png`;
+
+    // If zombie image missing but zomple exists (or vice versa) try both:
+    const altDead =
+      portraitState === "zombie"
+        ? `${folder}/${baseKey}_zomple..png`
+        : portraitState === "zomple"
+          ? `${folder}/${baseKey}_zombie..png`
+          : "";
+
+    const list = [primary];
+    if (altDead) list.push(altDead);
+    list.push(idle);
+
+    return Array.from(new Set(list.filter(Boolean)));
   }, [folder, baseKey, portraitState]);
 
   const [resolvedSrc, setResolvedSrc] = useState("");
@@ -168,7 +191,16 @@ export default function VaultCompanion({
         <rect x="0" y="0" width="520" height="520" fill="rgba(0,0,0,0.06)" />
 
         <g filter="url(#pipGlow)">
-          <rect x="26" y="26" width="468" height="468" rx="28" fill="rgba(0,0,0,0.22)" stroke="rgba(120,255,170,0.30)" strokeWidth="2" />
+          <rect
+            x="26"
+            y="26"
+            width="468"
+            height="468"
+            rx="28"
+            fill="rgba(0,0,0,0.22)"
+            stroke="rgba(120,255,170,0.30)"
+            strokeWidth="2"
+          />
         </g>
 
         <g style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
@@ -181,7 +213,15 @@ export default function VaultCompanion({
         </g>
 
         <g clipPath="url(#portraitClip)">
-          <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
+          <rect
+            x="70"
+            y="96"
+            width="380"
+            height="350"
+            rx="22"
+            fill="rgba(0,0,0,0.12)"
+            stroke="rgba(120,255,170,0.18)"
+          />
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
           {resolvedSrc ? (
@@ -217,7 +257,7 @@ export default function VaultCompanion({
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            sex={baseKey} state={portraitState} src={resolvedSrc ? "OK" : "FAIL"}
+            sex={baseKey} state={portraitState} src={resolvedSrc ? "OK" : "FAIL"} file={resolvedSrc || "-"}
           </text>
         )}
       </svg>
@@ -225,6 +265,7 @@ export default function VaultCompanion({
   );
 }
 
+/* helpers */
 function num(v, d = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
