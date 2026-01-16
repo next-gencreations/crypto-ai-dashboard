@@ -8,6 +8,9 @@ import VaultCompanion from "./components/VaultCompanion";
 const REFRESH_MS = 5000;
 const FETCH_TIMEOUT_MS = 20000;
 
+// 🔧 Set true temporarily if images don't show, then you'll see debug text in the hologram
+const COMPANION_DEBUG = false;
+
 function safeMarketsList(m) {
   try {
     if (Array.isArray(m)) return m;
@@ -328,6 +331,7 @@ export default function HomePage() {
   const petSex = useMemo(() => {
     const sexFromApi = String(rawData?.pet?.sex || "").toLowerCase();
     if (sexFromApi === "boy" || sexFromApi === "girl") return sexFromApi;
+
     // fallback: infer from name if needed
     const name = String(companion?.name || "").toUpperCase();
     if (name.includes("BOY")) return "boy";
@@ -495,7 +499,7 @@ export default function HomePage() {
                       openPositions={disableDamageFx ? 0 : openPositions}
                       lastPnl={disableDamageFx ? 0 : lastPnl}
                       isTrading={isTrading}
-                      showDebugTag={false}
+                      showDebugTag={COMPANION_DEBUG}
                     />
                   </div>
 
@@ -563,4 +567,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
+      }
