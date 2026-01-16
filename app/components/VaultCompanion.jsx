@@ -32,13 +32,13 @@ export default function VaultCompanion({
     const s = String(stage || "").toLowerCase();
 
     // Super low health states (match your filenames)
-    if (H <= 5) return "zombie";  // vaultgirl_zombie..png / vaultboy_zombie..png
-    if (H <= 20) return "zomple"; // vaultgirl_zomple..png / vaultboy_zomple..png
+    if (H <= 5) return "zombie";  // *_zombie..png
+    if (H <= 20) return "zomple"; // *_zomple..png
 
     // Cryo has priority
     if (s.includes("cryo") || m.includes("cryo")) return "cryo";
 
-    // Mood overrides (if you send these moods from backend)
+    // Mood overrides
     if (m.includes("sick")) return "sick";
     if (m.includes("weak") || m.includes("tired") || m.includes("low")) return "weak";
     if (m.includes("happy")) return "happy";
@@ -94,12 +94,12 @@ export default function VaultCompanion({
       : "var(--pip-up-fill, rgba(0,255,160,0.18))";
 
   // ✅ IMPORTANT: your files really are "..png" and we keep them!
-  // Also: add extra fallback so it's harder to "IMAGE NOT FOUND"
+  // ✅ Extra fallback so it's harder to "IMAGE NOT FOUND"
   const candidates = useMemo(() => {
     const primary = `${folder}/${baseKey}_${portraitState}..png`;
     const idle = `${folder}/${baseKey}_idle..png`;
 
-    // If zombie image missing but zomple exists (or vice versa) try both:
+    // If zombie missing but zomple exists (or vice versa) try both
     const altDead =
       portraitState === "zombie"
         ? `${folder}/${baseKey}_zomple..png`
@@ -179,6 +179,11 @@ export default function VaultCompanion({
             <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
 
+          <radialGradient id="vignette" cx="50%" cy="48%" r="80%">
+            <stop offset="60%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.65)" />
+          </radialGradient>
+
           <pattern id="scan" width="6" height="6" patternUnits="userSpaceOnUse">
             <rect x="0" y="0" width="6" height="1" fill="rgba(120,255,170,0.07)" />
           </pattern>
@@ -236,24 +241,15 @@ export default function VaultCompanion({
               opacity="0.98"
             />
           ) : (
-            <text x="260" y="260" textAnchor="middle" fill="rgba(170,255,210,0.75)" fontSize="14">
+            <text x="260" y="250" textAnchor="middle" fill="rgba(170,255,210,0.75)" fontSize="14">
               IMAGE NOT FOUND
             </text>
           )}
 
           <rect x="70" y="96" width="380" height="350" fill="url(#scan)" opacity="0.55" />
-
-          {TRADING && H > 5 && (
-            <g opacity="0.85">
-              <circle cx="260" cy="260" r="150" fill="none" stroke={accentStroke} strokeWidth="3" opacity="0.35">
-                <animate attributeName="opacity" values="0.10;0.55;0.10" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
-              </circle>
-              <circle cx="260" cy="260" r="120" fill={accentFill} stroke={accentStroke} strokeWidth="2" opacity="0.18">
-                <animate attributeName="opacity" values="0.08;0.30;0.08" dur={`${pulseSpeed}s`} repeatCount="indefinite" />
-              </circle>
-            </g>
-          )}
         </g>
+
+        <rect x="46" y="46" width="428" height="428" rx="24" fill="url(#vignette)" opacity="0.55" />
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
