@@ -3,102 +3,90 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function upstreamBase() {
-  return (process.env.UPSTREAM_API_URL || process.env.RENDER_API_URL || "")
+  const base = (
+    process.env.UPSTREAM_API_URL ||
+    process.env.RENDER_API_URL ||
+    process.env.UPSTREAM_URL ||
+    ""
+  )
     .trim()
     .replace(/\/+$/, "");
+  return base;
 }
 
-async function handler(req, { params }) {
+function joinUrl(base, path) {
+  const p = String(path || "").replace(/^\/+/, "");
+  return `${base}/${p}`;
+}
+
+async function forward(req, ctx) {
   const base = upstreamBase();
   if (!base) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Missing UPSTREAM_API_URL/RENDER_API_URL on Vercel" }),
-      { status: 500, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+      JSON.stringify({ error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel." }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 
-  const pathParts = (params?.path || []).map(String);
-  const upstreamUrl = `${base}/${pathParts.join("/")}`;
+  const pathParts = ctx?.params?.path || [];
+  const path = Array.isArray(pathParts) ? pathParts.join("/") : String(pathParts || "");
 
-  // forward querystring too
-  const url = new URL(req.url);
-  const qs = url.searchParams.toString();
-  const finalUrl = qs ? `${upstreamUrl}?${qs}` : upstreamUrl;
+  const url = joinUrl(base, path);
 
-  // copy headers (but strip host and content-length)
+  // Copy headers (keep X-Vault-Token etc)
   const headers = new Headers(req.headers);
   headers.delete("host");
-  headers.delete("content-length");
 
-  // If browser sends OPTIONS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Vault-Token, Authorization",
-        "Access-Control-Max-Age": "86400",
-      },
-    });
+  // Always accept JSON (but don't break upstream if it returns html)
+  if (!headers.get("accept")) headers.set("accept", "application/json");
+
+  const init = {
+    method: req.method,
+    headers,
+    cache: "no-store",
+  };
+
+  // Body for non-GET/HEAD
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const buf = await req.arrayBuffer();
+    init.body = buf;
   }
 
-  // Only attach a body for methods that can have one
-  const method = req.method.toUpperCase();
-  const hasBody = !["GET", "HEAD"].includes(method);
+  const upstreamRes = await fetch(url, init);
 
-  let body = undefined;
-  if (hasBody) {
-    // stream body through (works for json too)
-    body = req.body;
-  }
+  // Pass through upstream response
+  const resHeaders = new Headers(upstreamRes.headers);
+  resHeaders.set("Cache-Control", "no-store");
 
-  let upstreamRes;
-  try {
-    upstreamRes = await fetch(finalUrl, {
-      method,
-      headers,
-      body,
-      redirect: "manual",
-      cache: "no-store",
-    });
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ ok: false, error: `Proxy fetch failed: ${String(e?.message || e)}`, finalUrl }),
-      { status: 502, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
-    );
-  }
+  const body = await upstreamRes.arrayBuffer();
 
-  // return upstream response (keep content-type)
-  const outHeaders = new Headers(upstreamRes.headers);
-  outHeaders.set("Cache-Control", "no-store");
-
-  // Optional: allow browser access (safe for your setup)
-  outHeaders.set("Access-Control-Allow-Origin", "*");
-  outHeaders.set("Access-Control-Allow-Headers", "Content-Type, X-Vault-Token, Authorization");
-  outHeaders.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-
-  return new Response(upstreamRes.body, {
+  return new Response(body, {
     status: upstreamRes.status,
-    headers: outHeaders,
+    headers: resHeaders,
   });
 }
 
 export async function GET(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
 export async function POST(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
 export async function PUT(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
 export async function PATCH(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
 export async function DELETE(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
 export async function OPTIONS(req, ctx) {
-  return handler(req, ctx);
+  return forward(req, ctx);
 }
