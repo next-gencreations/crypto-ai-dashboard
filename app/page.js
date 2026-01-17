@@ -360,10 +360,11 @@ export default function HomePage() {
         </div>
 
         <div className="pip-links">
-          <Link className="pip-link active" href="/">HOME</Link>
-          <Link className="pip-link" href="/candles">CANDLES</Link>
-          <Link className="pip-link" href="/crypto">CRYPTO</Link>
-        </div>
+  <Link className="pip-link active" href="/">HOME</Link>
+  <Link className="pip-link" href="/candles">CANDLES</Link>
+  <Link className="pip-link" href="/crypto">CRYPTO</Link>
+  <Link className="pip-link" href="/vault">VAULT</Link>
+</div>
 
         <div className="pip-links">
           <button
