@@ -25,6 +25,12 @@ function safeMarketsList(m) {
   }
 }
 
+// ✅ Force sex into exactly: "vaultboy" or "vaultgirl"
+function normalizeSex(v) {
+  const s = String(v || "").toLowerCase();
+  return s.includes("boy") ? "vaultboy" : "vaultgirl";
+}
+
 async function fetchJson(url, signal) {
   const res = await fetch(url, {
     method: "GET",
@@ -115,6 +121,7 @@ export default function HomePage() {
 
   const [companion, setCompanion] = useState({
     name: "VAULT GIRL",
+    sex: "vaultgirl", // ✅ store normalized sex here
     stage: "cryo",
     mood: "cryo",
     health: 100.0,
@@ -196,14 +203,17 @@ export default function HomePage() {
       setLastPnl(Number.isFinite(lp) ? lp : 0);
 
       const pet = data?.pet || {};
-      const sex = String(pet?.sex || "girl").toLowerCase();
-      const defaultName = sex === "boy" ? "VAULT BOY" : "VAULT GIRL";
+
+      // ✅ Normalize sex to vaultboy/vaultgirl (robust)
+      const sexNorm = normalizeSex(pet?.sex || pet?.gender || pet?.name);
+      const defaultName = sexNorm.includes("boy") ? "VAULT BOY" : "VAULT GIRL";
 
       const stage = String(pet?.stage || "cryo");
       const mood = String(pet?.mood || "cryo");
 
       setCompanion({
         name: String(pet?.name || defaultName),
+        sex: sexNorm, // ✅ store sex here
         stage,
         mood,
         health: Number(pet?.health ?? 100.0) || 0,
@@ -327,16 +337,12 @@ export default function HomePage() {
   const disableDamageFx = !!err;
   const isTrading = !err && botState === "ACTIVE";
 
-  // ✅ choose sex for companion render (no guessing / safe fallback)
-  const petSex = useMemo(() => {
-    const sexFromApi = String(rawData?.pet?.sex || "").toLowerCase();
-    if (sexFromApi === "boy" || sexFromApi === "girl") return sexFromApi;
-
-    // fallback: infer from name if needed
-    const name = String(companion?.name || "").toUpperCase();
-    if (name.includes("BOY")) return "boy";
-    return "girl";
-  }, [rawData, companion]);
+  // ✅ Force remount of image logic when sex/stage/mood/health/pnl changes (helps kill “stuck” portrait)
+  const companionKey = useMemo(() => {
+    const h = Math.round(Number(companion.health || 0));
+    const pnl = Math.round(Number(lastPnl || 0) * 100);
+    return `${companion.sex}-${companion.stage}-${companion.mood}-${h}-${pnl}`;
+  }, [companion.sex, companion.stage, companion.mood, companion.health, lastPnl]);
 
   return (
     <div className="pip-crt">
@@ -344,7 +350,6 @@ export default function HomePage() {
         <div className="pip-topbar">
           <div className="pip-topbar-left">
             <div className="pip-title">PIP-TRADE 3000</div>
-            {/* ✅ allow long URLs/time strings to wrap on mobile */}
             <div className="pip-sub wrap-anywhere" title={subtitle}>
               {subtitle}
             </div>
@@ -421,7 +426,6 @@ export default function HomePage() {
                   <div>
                     <div className="pip-row">
                       <div className="pip-k">LAST HEARTBEAT</div>
-                      {/* ✅ wrap long time strings */}
                       <div className="pip-v wrap-anywhere" title={heartbeat || ""}>
                         {heartbeat || "—"}
                       </div>
@@ -433,7 +437,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* ✅ Bankroll control */}
                 <div style={{ marginTop: 14 }}>
                   <div className="pip-heading">BANKROLL CONTROL</div>
 
@@ -491,7 +494,8 @@ export default function HomePage() {
                 <div className="pip-companion-col">
                   <div className="pip-petbox">
                     <VaultCompanion
-                      sex={petSex} // "boy" or "girl"
+                      key={companionKey}
+                      sex={companion.sex || "vaultgirl"} // ✅ always vaultboy/vaultgirl
                       mood={companion.mood || "cryo"}
                       stage={companion.stage || "cryo"}
                       vaultNumber="13"
@@ -529,7 +533,6 @@ export default function HomePage() {
                     </div>
                     <div className="pip-stat">
                       <div className="pip-k">UPDATED</div>
-                      {/* ✅ wrap long ISO timestamps */}
                       <div className="pip-v wrap-anywhere" title={String(companion.updated || "")}>
                         {String(companion.updated || "—")}
                       </div>
@@ -548,7 +551,11 @@ export default function HomePage() {
             <div className="pip-panel">
               <div className="pip-heading">RAW DATA</div>
               <pre className="pip-code">
-                {JSON.stringify(rawData ?? lastGoodRawData ?? { note: "No data received yet." }, null, 2)}
+                {JSON.stringify(
+                  rawData ?? lastGoodRawData ?? { note: "No data received yet." },
+                  null,
+                  2
+                )}
               </pre>
             </div>
           )}
@@ -567,4 +574,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-      }
+}
