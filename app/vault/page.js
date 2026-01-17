@@ -2,33 +2,33 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // ---------- helpers ----------
-function bufferToBase64Url(buf) {
-  const bytes = new Uint8Array(buf);
-  let str = "";
-  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
-  const b64 = btoa(str);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-function base64UrlToBuffer(b64url) {
-  const b64 = (b64url || "").replace(/-/g, "+").replace(/_/g, "/");
-  const pad = b64.length % 4 ? "=".repeat(4 - (b64.length % 4)) : "";
-  const raw = atob(b64 + pad);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out.buffer;
+async function fetchJson(url) {
+  const res = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+    headers: { accept: "application/json" },
+  });
+  const txt = await res.text().catch(() => "");
+  let data = {};
+  try {
+    data = txt ? JSON.parse(txt) : {};
+  } catch {
+    // ignore
+  }
+  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  return data;
 }
 
-async function postJson(url, body, token) {
+async function postJson(url, body) {
   const res = await fetch(url, {
     method: "POST",
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       accept: "application/json",
-      ...(token ? { "X-Vault-Token": token } : {}),
     },
     body: JSON.stringify(body || {}),
   });
@@ -40,10 +40,25 @@ async function postJson(url, body, token) {
   } catch {
     // ignore
   }
+  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  return data;
+}
 
-  if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+async function delJson(url) {
+  const res = await fetch(url, {
+    method: "DELETE",
+    cache: "no-store",
+    headers: { accept: "application/json" },
+  });
+
+  const txt = await res.text().catch(() => "");
+  let data = {};
+  try {
+    data = txt ? JSON.parse(txt) : {};
+  } catch {
+    // ignore
   }
+  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
   return data;
 }
 
@@ -61,9 +76,30 @@ function SafeDoor({ locked, statusText }) {
           padding: 14,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", letterSpacing: 3, fontSize: 13 }}>
-          <span>VAULT SAFE</span>
-          <span style={{ opacity: 0.85 }}>{locked ? "LOCKED" : "OPEN"}</span>
+        {/* header row - fixed wrapping so LOCKED never goes offscreen */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            letterSpacing: 3,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ minWidth: 120 }}>VAULT SAFE</span>
+          <span
+            style={{
+              opacity: 0.85,
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {locked ? "LOCKED" : "OPEN"}
+          </span>
         </div>
 
         <div
@@ -123,7 +159,11 @@ function SafeDoor({ locked, statusText }) {
               fontSize: 13,
               letterSpacing: 1.3,
               opacity: 0.95,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
+            title={statusText}
           >
             {statusText}
           </div>
@@ -133,12 +173,12 @@ function SafeDoor({ locked, statusText }) {
   );
 }
 
-function PinPad({ onSubmit, disabled }) {
+function PinPad({ onSubmit, disabled, modeLabel = "ENTER PIN" }) {
   const [pin, setPin] = useState("");
 
   function press(n) {
     if (disabled) return;
-    if (pin.length >= 8) return;
+    if (pin.length >= 12) return;
     setPin((p) => p + String(n));
   }
   function del() {
@@ -151,32 +191,52 @@ function PinPad({ onSubmit, disabled }) {
   }
   async function submit() {
     if (disabled) return;
+    if (!pin || pin.length < 4) return;
     await onSubmit(pin);
     setPin("");
   }
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <div
+      <div className="pip-muted" style={{ marginBottom: 2 }}>
+        {modeLabel}
+      </div>
+
+      {/* also allow typing pin (mobile keyboard "Done" submits) */}
+      <input
+        value={pin}
+        onChange={(e) => setPin(String(e.target.value || "").replace(/\D/g, "").slice(0, 12))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        placeholder="••••"
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          padding: "12px 12px",
           borderRadius: 12,
           border: "1px solid rgba(120,255,170,0.18)",
           background: "rgba(0,0,0,0.35)",
-          padding: "10px 12px",
-          letterSpacing: 6,
+          color: "rgba(180,255,210,0.95)",
+          outline: "none",
+          letterSpacing: 10,
+          fontSize: 16,
+          textAlign: "center",
         }}
-      >
-        <span>{"•".repeat(pin.length)}</span>
+        disabled={disabled}
+      />
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "space-between", flexWrap: "wrap" }}>
         <button className="pip-link" type="button" onClick={del} disabled={disabled}>
-          ⌫
+          ⌫ BACK
+        </button>
+        <button className="pip-link" type="button" onClick={clear} disabled={disabled}>
+          CLEAR
         </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {[1,2,3,4,5,6,7,8,9].map((n) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <button
             key={n}
             type="button"
@@ -198,6 +258,21 @@ function PinPad({ onSubmit, disabled }) {
           ↵
         </button>
       </div>
+
+      {/* big obvious enter button */}
+      <button
+        className="pip-link"
+        type="button"
+        onClick={submit}
+        disabled={disabled || pin.length < 4}
+        style={{ padding: "14px 0", opacity: disabled || pin.length < 4 ? 0.6 : 1 }}
+      >
+        ENTER
+      </button>
+
+      <div className="pip-muted" style={{ fontSize: 12 }}>
+        PIN must be 4–12 digits.
+      </div>
     </div>
   );
 }
@@ -206,10 +281,10 @@ export default function VaultPage() {
   const [status, setStatus] = useState("Vault ready.");
   const [locked, setLocked] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [showPin, setShowPin] = useState(false);
 
-  // memory-only token (never localStorage)
-  const [vaultToken, setVaultToken] = useState("");
+  const [pinSet, setPinSet] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [mode, setMode] = useState("unlock"); // "unlock" | "setpin"
 
   // key form
   const [exchange, setExchange] = useState("BINANCE");
@@ -222,76 +297,81 @@ export default function VaultPage() {
     return `Vault · Mode: PAPER (live locked) · ${locked ? "LOCKED" : "OPEN"}`;
   }, [locked]);
 
-  async function refreshKeys(token) {
-    const t = token || vaultToken;
-    if (!t) return;
-    const out = await postJson("/api/proxy/vault/keys/list", {}, t);
+  async function refreshStatus() {
+    const s = await fetchJson("/api/proxy/vault/status");
+    const isUnlocked = !!s?.unlocked;
+    setLocked(!isUnlocked);
+    setPinSet(!!s?.pin_set);
+    setStatus(
+      s?.enabled === false
+        ? "Vault not configured (missing VAULT_MASTER_KEY)."
+        : isUnlocked
+        ? "Vault unlocked."
+        : "Vault ready."
+    );
+    if (!s?.pin_set) {
+      setShowPin(true);
+      setMode("setpin");
+    }
+  }
+
+  async function refreshKeys() {
+    // backend requires unlocked session; if locked, don't fetch
+    if (locked) return;
+    const out = await fetchJson("/api/proxy/vault/keys");
     setKeysList(out?.keys || []);
   }
 
-  async function unlockWithPasskey() {
+  useEffect(() => {
+    const run = async () => {
+      try {
+        await refreshStatus();
+        // if unlocked already (TTL), pull keys
+        // (refreshStatus updates locked state)
+        setTimeout(() => {
+          // run after state settles
+          refreshKeys().catch(() => {});
+        }, 0);
+      } catch (e) {
+        setStatus(`Vault status failed: ${String(e?.message || e)}`);
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function unlockWithPin(pin) {
     setBusy(true);
     try {
-      if (!window.PublicKeyCredential) {
-        setStatus("Passkeys not supported here. Use PIN.");
-        setShowPin(true);
-        return;
-      }
-
-      const opts = await postJson("/api/proxy/vault/webauthn/login/options", {}, "");
-      const pub = opts?.publicKey;
-      if (!pub?.challenge) throw new Error("Missing WebAuthn challenge");
-
-      const publicKey = {
-        ...pub,
-        challenge: base64UrlToBuffer(pub.challenge),
-        allowCredentials: (pub.allowCredentials || []).map((c) => ({
-          ...c,
-          id: base64UrlToBuffer(c.id),
-        })),
-      };
-
-      const cred = await navigator.credentials.get({ publicKey });
-      if (!cred) throw new Error("No credential returned");
-
-      const assertion = {
-        id: cred.id,
-        rawId: bufferToBase64Url(cred.rawId),
-        type: cred.type,
-        response: {
-          clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
-          authenticatorData: bufferToBase64Url(cred.response.authenticatorData),
-          signature: bufferToBase64Url(cred.response.signature),
-          userHandle: cred.response.userHandle ? bufferToBase64Url(cred.response.userHandle) : null,
-        },
-      };
-
-      const verify = await postJson("/api/proxy/vault/webauthn/login/verify", assertion, "");
-      if (!verify?.ok || !verify?.vault_token) throw new Error("Unlock failed");
-
-      setVaultToken(verify.vault_token);
+      const out = await postJson("/api/proxy/vault/unlock", { pin });
+      if (!out?.ok) throw new Error(out?.error || "Unlock failed");
       setLocked(false);
-      setStatus("Vault unlocked via biometrics.");
-      await refreshKeys(verify.vault_token);
+      setStatus("Vault unlocked via PIN.");
+      setShowPin(false);
+      await refreshKeys();
     } catch (e) {
-      setStatus(`Unlock failed: ${String(e?.message || e)}`);
+      setStatus(`PIN unlock failed: ${String(e?.message || e)}`);
       setShowPin(true);
+      setMode("unlock");
     } finally {
       setBusy(false);
     }
   }
 
-  async function unlockWithPin(pin) {
+  async function setPin(pin) {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/pin/unlock", { pin }, "");
-      if (!out?.ok || !out?.vault_token) throw new Error("PIN unlock failed");
-      setVaultToken(out.vault_token);
-      setLocked(false);
-      setStatus("Vault unlocked via PIN.");
-      await refreshKeys(out.vault_token);
+      const out = await postJson("/api/proxy/vault/pin/set", { pin });
+      if (!out?.ok) throw new Error(out?.error || "Set PIN failed");
+      setPinSet(true);
+      setLocked(false); // backend sets unlocked_until on set
+      setStatus("PIN set ✅ Vault unlocked.");
+      setShowPin(false);
+      await refreshKeys();
     } catch (e) {
-      setStatus(`PIN unlock failed: ${String(e?.message || e)}`);
+      setStatus(`Set PIN failed: ${String(e?.message || e)}`);
+      setShowPin(true);
+      setMode("setpin");
     } finally {
       setBusy(false);
     }
@@ -300,12 +380,12 @@ export default function VaultPage() {
   async function lockNow() {
     setBusy(true);
     try {
-      if (vaultToken) {
-        await postJson("/api/proxy/vault/lock", {}, vaultToken).catch(() => {});
-      }
-      setVaultToken("");
+      await postJson("/api/proxy/vault/lock", {}).catch(() => {});
       setLocked(true);
       setStatus("Vault locked.");
+      setKeysList([]);
+      setShowPin(true);
+      setMode(pinSet ? "unlock" : "setpin");
     } finally {
       setBusy(false);
     }
@@ -314,39 +394,24 @@ export default function VaultPage() {
   async function saveKeys() {
     setBusy(true);
     try {
-      if (!vaultToken) throw new Error("Vault locked.");
+      if (locked) throw new Error("Vault locked.");
       if (!apiKey.trim() || !apiSecret.trim()) throw new Error("Key + secret required.");
 
-      const out = await postJson(
-        "/api/proxy/vault/keys/save",
-        {
-          exchange,
-          api_key: apiKey.trim(),
-          api_secret: apiSecret.trim(),
-          passphrase: passphrase.trim(),
-        },
-        vaultToken
-      );
+      const out = await postJson("/api/proxy/vault/keys/add", {
+        exchange,
+        api_key: apiKey.trim(),
+        api_secret: apiSecret.trim(),
+        passphrase: passphrase.trim(),
+      });
 
-      setStatus(out?.message || "Saved.");
+      if (!out?.ok) throw new Error(out?.error || "Save failed");
+      setStatus("Key saved (encrypted).");
       setApiKey("");
       setApiSecret("");
       setPassphrase("");
-      await refreshKeys(vaultToken);
+      await refreshKeys();
     } catch (e) {
       setStatus(`Save failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function testKey(id) {
-    setBusy(true);
-    try {
-      const out = await postJson("/api/proxy/vault/keys/test", { id }, vaultToken);
-      setStatus(out?.message || "Test OK");
-    } catch (e) {
-      setStatus(`Test failed: ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
@@ -355,9 +420,10 @@ export default function VaultPage() {
   async function deleteKey(id) {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/keys/delete", { id }, vaultToken);
-      setStatus(out?.message || "Deleted.");
-      await refreshKeys(vaultToken);
+      const out = await delJson(`/api/proxy/vault/keys/delete/${id}`);
+      if (!out?.ok) throw new Error(out?.error || "Delete failed");
+      setStatus("Deleted.");
+      await refreshKeys();
     } catch (e) {
       setStatus(`Delete failed: ${String(e?.message || e)}`);
     } finally {
@@ -392,24 +458,35 @@ export default function VaultPage() {
             <div className="pip-heading">VAULT SAFE</div>
             <SafeDoor locked={locked} statusText={status} />
 
-            <div className="pip-links" style={{ marginTop: 10 }}>
-              <button className="pip-link" type="button" onClick={unlockWithPasskey} disabled={busy || !locked}>
-                UNLOCK (BIOMETRICS)
+            <div className="pip-links" style={{ marginTop: 10, flexWrap: "wrap" }}>
+              <button
+                className="pip-link"
+                type="button"
+                onClick={() => {
+                  setShowPin(true);
+                  setMode(pinSet ? "unlock" : "setpin");
+                }}
+                disabled={busy}
+              >
+                {pinSet ? "USE PIN" : "SET PIN"}
               </button>
-              <button className="pip-link" type="button" onClick={() => setShowPin((s) => !s)} disabled={busy}>
-                {showPin ? "HIDE PIN" : "USE PIN"}
-              </button>
+
               <button className="pip-link" type="button" onClick={lockNow} disabled={busy}>
                 LOCK
+              </button>
+
+              <button className="pip-link" type="button" onClick={() => refreshStatus()} disabled={busy}>
+                REFRESH
               </button>
             </div>
 
             {showPin && (
               <div style={{ marginTop: 14 }}>
-                <div className="pip-muted" style={{ marginBottom: 8 }}>
-                  PIN FALLBACK
-                </div>
-                <PinPad onSubmit={unlockWithPin} disabled={busy} />
+                <PinPad
+                  onSubmit={mode === "setpin" ? setPin : unlockWithPin}
+                  disabled={busy}
+                  modeLabel={mode === "setpin" ? "SET A NEW PIN" : "ENTER PIN TO UNLOCK"}
+                />
               </div>
             )}
 
@@ -512,17 +589,18 @@ export default function VaultPage() {
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                           <div style={{ fontWeight: 800, letterSpacing: 2 }}>
-                            {k.exchange} • {k.key_hint}
+                            {(k.exchange || "").toUpperCase()} • {k.api_key_masked || "****"}
                           </div>
                           <div className="pip-muted" style={{ fontSize: 12 }}>
-                            {k.created_time_utc || ""}
+                            {k.created || ""}
                           </div>
                         </div>
 
+                        <div className="pip-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                          secret: {k.has_secret ? "YES" : "NO"} • passphrase: {k.has_passphrase ? "YES" : "NO"}
+                        </div>
+
                         <div className="pip-links" style={{ marginTop: 8 }}>
-                          <button className="pip-link" type="button" onClick={() => testKey(k.id)} disabled={busy}>
-                            TEST
-                          </button>
                           <button className="pip-link" type="button" onClick={() => deleteKey(k.id)} disabled={busy}>
                             DELETE
                           </button>
