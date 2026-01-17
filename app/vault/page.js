@@ -4,28 +4,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-/**
- * This Vault page matches the Flask backend routes:
- * GET    /vault/status
- * POST   /vault/pin/set
- * POST   /vault/unlock
- * POST   /vault/lock
- * GET    /vault/keys
- * POST   /vault/keys/add
- * DELETE /vault/keys/delete/<id>
- *
- * Via Vercel proxy:
- * /api/proxy/<path...>
- */
-
-// --------------------- helpers ---------------------
-async function fetchJson(url, opts = {}) {
+// ---------- helpers ----------
+async function fetchJson(url, token) {
   const res = await fetch(url, {
+    method: "GET",
     cache: "no-store",
-    ...opts,
     headers: {
       accept: "application/json",
-      ...(opts.headers || {}),
+      ...(token ? { "X-Vault-Token": token } : {}),
     },
   });
 
@@ -34,26 +20,41 @@ async function fetchJson(url, opts = {}) {
   try {
     data = txt ? JSON.parse(txt) : {};
   } catch {
-    data = { raw: txt };
+    // If we got HTML, show a better error
+    throw new Error(`Non-JSON from ${url} (HTTP ${res.status})`);
   }
-
-  if (!res.ok) {
-    const msg = data?.error || data?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
+  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
   return data;
 }
 
-async function postJson(url, body) {
-  return fetchJson(url, {
+async function postJson(url, body, token) {
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      accept: "application/json",
+      ...(token ? { "X-Vault-Token": token } : {}),
+    },
     body: JSON.stringify(body || {}),
   });
+
+  const txt = await res.text().catch(() => "");
+  let data = {};
+  try {
+    data = txt ? JSON.parse(txt) : {};
+  } catch {
+    // Common symptom when proxy POST isn't implemented (404 HTML)
+    throw new Error(`Non-JSON from ${url} (HTTP ${res.status})`);
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  }
+  return data;
 }
 
-function SafeDoor({ locked, statusText }) {
+function SafeDoor({ locked, statusText, enabled }) {
   return (
     <div style={{ display: "grid", placeItems: "center", padding: 10 }}>
       <div
@@ -67,9 +68,20 @@ function SafeDoor({ locked, statusText }) {
           padding: 14,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", letterSpacing: 3, fontSize: 13 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            letterSpacing: 3,
+            fontSize: 13,
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <span>VAULT SAFE</span>
-          <span style={{ opacity: 0.85 }}>{locked ? "LOCKED" : "OPEN"}</span>
+          <span style={{ opacity: 0.85 }}>
+            {enabled ? (locked ? "LOCKED" : "OPEN") : "DISABLED"}
+          </span>
         </div>
 
         <div
@@ -96,6 +108,7 @@ function SafeDoor({ locked, statusText }) {
               transition: "transform 600ms ease",
               display: "grid",
               placeItems: "center",
+              opacity: enabled ? 1 : 0.55,
             }}
           >
             <div
@@ -112,7 +125,7 @@ function SafeDoor({ locked, statusText }) {
                 fontSize: 18,
               }}
             >
-              {locked ? "🔒" : "✅"}
+              {!enabled ? "⛔" : locked ? "🔒" : "✅"}
             </div>
           </div>
 
@@ -127,7 +140,7 @@ function SafeDoor({ locked, statusText }) {
               background: "rgba(0,0,0,0.35)",
               padding: "10px 12px",
               fontSize: 13,
-              letterSpacing: 1.2,
+              letterSpacing: 1.3,
               opacity: 0.95,
               overflowWrap: "anywhere",
               wordBreak: "break-word",
@@ -141,12 +154,12 @@ function SafeDoor({ locked, statusText }) {
   );
 }
 
-function PinPad({ label, onSubmit, disabled }) {
+function PinPad({ onSubmit, disabled, label = "ENTER PIN" }) {
   const [pin, setPin] = useState("");
 
   function press(n) {
     if (disabled) return;
-    if (pin.length >= 12) return;
+    if (pin.length >= 8) return;
     setPin((p) => p + String(n));
   }
   function del() {
@@ -164,22 +177,9 @@ function PinPad({ label, onSubmit, disabled }) {
     setPin("");
   }
 
-  // Enter key support (for desktops)
-  useEffect(() => {
-    function onKey(e) {
-      if (disabled) return;
-      if (e.key === "Enter") submit();
-      if (e.key === "Backspace") del();
-      if (/^\d$/.test(e.key)) press(e.key);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, disabled]);
-
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <div className="pip-muted" style={{ marginBottom: 2 }}>
+      <div className="pip-muted" style={{ letterSpacing: "0.12em" }}>
         {label}
       </div>
 
@@ -196,9 +196,14 @@ function PinPad({ label, onSubmit, disabled }) {
         }}
       >
         <span>{"•".repeat(pin.length)}</span>
-        <button className="pip-link" type="button" onClick={del} disabled={disabled}>
-          ⌫
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="pip-link" type="button" onClick={del} disabled={disabled}>
+            ⌫
+          </button>
+          <button className="pip-link" type="button" onClick={submit} disabled={disabled}>
+            ↵
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -217,17 +222,11 @@ function PinPad({ label, onSubmit, disabled }) {
         <button type="button" className="pip-link" onClick={clear} disabled={disabled} style={{ padding: "14px 0" }}>
           C
         </button>
-        <button
-          type="button"
-          className="pip-link"
-          onClick={() => press(0)}
-          disabled={disabled}
-          style={{ padding: "14px 0" }}
-        >
+        <button type="button" className="pip-link" onClick={() => press(0)} disabled={disabled} style={{ padding: "14px 0" }}>
           0
         </button>
         <button type="button" className="pip-link" onClick={submit} disabled={disabled} style={{ padding: "14px 0" }}>
-          ↵
+          ENTER
         </button>
       </div>
     </div>
@@ -235,70 +234,53 @@ function PinPad({ label, onSubmit, disabled }) {
 }
 
 export default function VaultPage() {
-  const [statusText, setStatusText] = useState("Vault ready.");
+  const [statusText, setStatusText] = useState("Loading vault status…");
   const [busy, setBusy] = useState(false);
 
-  // backend status
+  // vault status from backend
   const [enabled, setEnabled] = useState(false);
   const [pinSet, setPinSet] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
-  const [expires, setExpires] = useState(0);
-  const [ttlSec, setTtlSec] = useState(300);
 
-  // ui mode
+  // UI state
+  const [locked, setLocked] = useState(true);
   const [showPinUnlock, setShowPinUnlock] = useState(false);
-  const [showPinSet, setShowPinSet] = useState(false);
+  const [showSetPin, setShowSetPin] = useState(false);
+  const [setPinStep, setSetPinStep] = useState(1);
+  const [pinFirst, setPinFirst] = useState("");
 
-  // key form
-  const [exchange, setExchange] = useState("BINANCE");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-  const [keysList, setKeysList] = useState([]);
-
-  const locked = !unlocked;
+  // memory-only token (never localStorage)
+  const [vaultToken, setVaultToken] = useState("");
 
   const subtitle = useMemo(() => {
-    const pinTxt = pinSet ? "PIN SET" : "PIN NOT SET";
-    const mode = "PAPER (live locked)";
-    return `Vault · ${mode} · ${locked ? "LOCKED" : "OPEN"} · ${pinTxt}`;
-  }, [locked, pinSet]);
+    const bits = [
+      "Vault",
+      enabled ? (locked ? "LOCKED" : "OPEN") : "DISABLED",
+      pinSet ? "PIN SET" : "PIN NOT SET",
+    ];
+    return bits.join(" · ");
+  }, [enabled, locked, pinSet]);
 
   async function refreshStatus() {
+    setBusy(true);
     try {
       const s = await fetchJson("/api/proxy/vault/status");
-      setEnabled(!!s.enabled);
-      setPinSet(!!s.pin_set);
-      setUnlocked(!!s.unlocked);
-      setExpires(Number(s.expires || 0));
-      setTtlSec(Number(s.ttl_sec || 300));
+      setEnabled(!!s?.enabled);
+      setPinSet(!!s?.pin_set);
 
-      if (!s.enabled) {
-        setStatusText("Vault not configured. Set VAULT_MASTER_KEY on Render.");
-      } else if (!s.pin_set) {
-        setStatusText("Vault ready. Set a PIN to enable unlock.");
-      } else if (!s.unlocked) {
-        setStatusText("Safe locked. Enter PIN to unlock.");
+      // If backend says unlocked but we don't have token, still show locked
+      setLocked(true);
+
+      if (!s?.enabled) {
+        setStatusText("Vault not configured on backend. Set VAULT_MASTER_KEY on Render and restart service.");
+      } else if (!s?.pin_set) {
+        setStatusText("Vault online. PIN not set yet — set PIN to enable quick unlock.");
       } else {
-        setStatusText("Safe unlocked.");
+        setStatusText("Vault online. Ready to unlock.");
       }
     } catch (e) {
       setStatusText(`Status error: ${String(e?.message || e)}`);
-    }
-  }
-
-  async function refreshKeys() {
-    try {
-      const out = await fetchJson("/api/proxy/vault/keys");
-      setKeysList(out?.keys || []);
-    } catch (e) {
-      // if locked, backend returns 401 vault_locked
-      const msg = String(e?.message || e);
-      if (msg.includes("vault_locked")) {
-        setKeysList([]);
-      } else {
-        setStatusText(`Keys error: ${msg}`);
-      }
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -307,38 +289,14 @@ export default function VaultPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When unlocked changes, refresh keys
-  useEffect(() => {
-    if (unlocked) refreshKeys();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked]);
-
-  async function setPin(pin) {
-    setBusy(true);
-    try {
-      const out = await postJson("/api/proxy/vault/pin/set", { pin });
-      if (!out?.ok) throw new Error("Set PIN failed");
-      setStatusText("PIN set. Safe unlocked.");
-      await refreshStatus();
-      setShowPinSet(false);
-      setShowPinUnlock(false);
-      await refreshKeys();
-    } catch (e) {
-      setStatusText(`Set PIN failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function unlockWithPin(pin) {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/unlock", { pin });
-      if (!out?.ok) throw new Error("Unlock failed");
-      setStatusText("Safe unlocked via PIN.");
-      await refreshStatus();
-      setShowPinUnlock(false);
-      await refreshKeys();
+      const out = await postJson("/api/proxy/vault/pin/unlock", { pin });
+      if (!out?.ok || !out?.vault_token) throw new Error("PIN unlock failed");
+      setVaultToken(out.vault_token);
+      setLocked(false);
+      setStatusText("Vault unlocked via PIN.");
     } catch (e) {
       setStatusText(`PIN unlock failed: ${String(e?.message || e)}`);
     } finally {
@@ -349,65 +307,56 @@ export default function VaultPage() {
   async function lockNow() {
     setBusy(true);
     try {
-      await postJson("/api/proxy/vault/lock", {});
-      setStatusText("Safe locked.");
+      // best-effort lock on backend, then clear local session
+      if (vaultToken) {
+        await postJson("/api/proxy/vault/lock", {}, vaultToken).catch(() => {});
+      }
+      setVaultToken("");
+      setLocked(true);
+      setStatusText("Vault locked.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setPinFlow(pin) {
+    // two-step confirm
+    if (setPinStep === 1) {
+      setPinFirst(pin);
+      setSetPinStep(2);
+      setStatusText("Confirm your new PIN.");
+      return;
+    }
+    if (pin !== pinFirst) {
+      setPinFirst("");
+      setSetPinStep(1);
+      setStatusText("PIN mismatch. Try again.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      // backend allows first-time setup without token (as per your backend logic)
+      const out = await postJson("/api/proxy/vault/pin/set", { pin });
+      setStatusText(out?.message || "PIN set.");
+      setShowSetPin(false);
+      setSetPinStep(1);
+      setPinFirst("");
       await refreshStatus();
-      setKeysList([]);
     } catch (e) {
-      setStatusText(`Lock failed: ${String(e?.message || e)}`);
+      setStatusText(`Set PIN failed: ${String(e?.message || e)}`);
+      setPinFirst("");
+      setSetPinStep(1);
     } finally {
       setBusy(false);
     }
   }
 
-  async function saveKeys() {
-    setBusy(true);
-    try {
-      if (!unlocked) throw new Error("Vault locked.");
-      if (!apiKey.trim() || !apiSecret.trim()) throw new Error("API key + secret required.");
-
-      const out = await postJson("/api/proxy/vault/keys/add", {
-        exchange,
-        api_key: apiKey.trim(),
-        api_secret: apiSecret.trim(),
-        passphrase: passphrase.trim(),
-      });
-
-      if (!out?.ok) throw new Error("Save failed");
-      setStatusText("Saved encrypted key.");
-      setApiKey("");
-      setApiSecret("");
-      setPassphrase("");
-      await refreshKeys();
-    } catch (e) {
-      setStatusText(`Save failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
+  // Passkeys button kept but disabled until your backend implements it fully
+  async function unlockWithBiometrics() {
+    setStatusText("Biometrics depends on WebAuthn endpoints. If not enabled on backend, use PIN.");
+    setShowPinUnlock(true);
   }
-
-  async function deleteKey(id) {
-    setBusy(true);
-    try {
-      if (!unlocked) throw new Error("Vault locked.");
-      const out = await fetchJson(`/api/proxy/vault/keys/delete/${id}`, { method: "DELETE" });
-      if (!out?.ok) throw new Error("Delete failed");
-      setStatusText("Deleted.");
-      await refreshKeys();
-    } catch (e) {
-      setStatusText(`Delete failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const expiresText = useMemo(() => {
-    if (!expires) return "";
-    const now = Math.floor(Date.now() / 1000);
-    const left = expires - now;
-    if (left <= 0) return "Session expired.";
-    return `Session TTL: ~${left}s (max ${ttlSec}s)`;
-  }, [expires, ttlSec]);
 
   return (
     <div className="pip-crt">
@@ -432,22 +381,21 @@ export default function VaultPage() {
         </div>
 
         <div className="pip-content">
-          {/* SAFE PANEL */}
           <div className="pip-panel">
             <div className="pip-heading">VAULT SAFE</div>
 
-            <SafeDoor locked={locked} statusText={statusText} />
+            <SafeDoor locked={locked} statusText={statusText} enabled={enabled} />
 
             <div className="pip-links" style={{ marginTop: 10 }}>
+              <button className="pip-link" type="button" onClick={unlockWithBiometrics} disabled={busy || !enabled || !locked}>
+                UNLOCK (BIOMETRICS)
+              </button>
+
               <button
                 className="pip-link"
                 type="button"
-                onClick={() => {
-                  setShowPinUnlock((s) => !s);
-                  setShowPinSet(false);
-                }}
-                disabled={busy || !enabled || !pinSet}
-                title={!pinSet ? "Set a PIN first" : ""}
+                onClick={() => setShowPinUnlock((s) => !s)}
+                disabled={busy || !enabled}
               >
                 {showPinUnlock ? "HIDE PIN" : "USE PIN"}
               </button>
@@ -456,174 +404,61 @@ export default function VaultPage() {
                 className="pip-link"
                 type="button"
                 onClick={() => {
-                  setShowPinSet((s) => !s);
-                  setShowPinUnlock(false);
+                  setShowSetPin((s) => !s);
+                  setSetPinStep(1);
+                  setPinFirst("");
+                  setStatusText(!pinSet ? "Enter a new PIN." : "Change PIN (requires backend rules).");
                 }}
                 disabled={busy || !enabled}
               >
-                {showPinSet ? "HIDE SET PIN" : "SET PIN"}
+                SET PIN
               </button>
 
-              <button className="pip-link" type="button" onClick={lockNow} disabled={busy || !enabled}>
+              <button className="pip-link" type="button" onClick={lockNow} disabled={busy}>
                 LOCK
               </button>
 
-              <button className="pip-link" type="button" onClick={() => refreshStatus()} disabled={busy}>
+              <button className="pip-link" type="button" onClick={refreshStatus} disabled={busy}>
                 REFRESH
               </button>
             </div>
 
-            {expiresText ? (
-              <div className="pip-muted" style={{ marginTop: 10 }}>
-                {expiresText}
-              </div>
-            ) : null}
-
-            {!enabled ? (
+            {!enabled && (
               <div className="pip-muted pip-footnote" style={{ marginTop: 12 }}>
-                Vault is disabled because <b>VAULT_MASTER_KEY</b> is not set (or Vercel proxy is not pointing to the
-                correct Render service).
-              </div>
-            ) : (
-              <div className="pip-muted pip-footnote" style={{ marginTop: 12 }}>
-                Keys are stored encrypted on the server. Do NOT enable withdrawal permissions. Withdrawals remain only
-                inside the exchange app.
+                Vault is disabled on backend. Confirm <b>VAULT_MASTER_KEY</b> is set on Render and restart the Render service.
               </div>
             )}
 
-            {showPinSet && enabled && (
+            {enabled && showSetPin && (
               <div style={{ marginTop: 14 }}>
-                <PinPad label="SET PIN (4–12 digits)" onSubmit={setPin} disabled={busy} />
+                <PinPad
+                  onSubmit={setPinFlow}
+                  disabled={busy}
+                  label={setPinStep === 1 ? "SET NEW PIN" : "CONFIRM PIN"}
+                />
               </div>
             )}
 
-            {showPinUnlock && enabled && pinSet && (
+            {enabled && showPinUnlock && (
               <div style={{ marginTop: 14 }}>
-                <PinPad label="UNLOCK WITH PIN" onSubmit={unlockWithPin} disabled={busy} />
+                <PinPad onSubmit={unlockWithPin} disabled={busy} label="UNLOCK WITH PIN" />
               </div>
             )}
+
+            <div className="pip-muted pip-footnote" style={{ marginTop: 12 }}>
+              Keys are stored encrypted on the server. Do NOT enable withdrawal permissions.
+              Withdrawals remain only inside the exchange app.
+            </div>
           </div>
 
-          {/* KEY VAULT PANEL */}
           <div className="pip-panel" style={{ marginTop: 14 }}>
             <div className="pip-heading">KEY VAULT</div>
-
             {locked ? (
               <div className="pip-muted">Unlock the safe to add/manage keys.</div>
             ) : (
-              <>
-                <div className="pip-row" style={{ borderBottom: "none" }}>
-                  <div className="pip-k">EXCHANGE</div>
-                  <select
-                    value={exchange}
-                    onChange={(e) => setExchange(e.target.value)}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                      maxWidth: "100%",
-                    }}
-                  >
-                    <option value="BINANCE">BINANCE</option>
-                    <option value="BYBIT">BYBIT</option>
-                    <option value="KRAKEN">KRAKEN</option>
-                  </select>
-                </div>
-
-                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-                  <input
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="API KEY"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="API SECRET"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="PASSPHRASE (optional)"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-
-                  <button className="pip-link" type="button" onClick={saveKeys} disabled={busy}>
-                    SAVE (ENCRYPT)
-                  </button>
-
-                  <button className="pip-link" type="button" onClick={refreshKeys} disabled={busy}>
-                    REFRESH KEYS
-                  </button>
-                </div>
-
-                <div className="pip-heading" style={{ marginTop: 18 }}>
-                  STORED KEYS (MASKED)
-                </div>
-
-                {keysList.length === 0 ? (
-                  <div className="pip-muted">No keys stored yet (or you are locked).</div>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {keysList.map((k) => (
-                      <div
-                        key={k.id}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid rgba(120,255,170,0.18)",
-                          background: "rgba(0,0,0,0.25)",
-                          padding: 10,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                          <div style={{ fontWeight: 900, letterSpacing: 2, overflowWrap: "anywhere" }}>
-                            {k.exchange} • {k.api_key_masked}
-                          </div>
-                          <div className="pip-muted" style={{ fontSize: 12, overflowWrap: "anywhere" }}>
-                            {k.created || ""}
-                          </div>
-                        </div>
-
-                        <div className="pip-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                          secret: {k.has_secret ? "yes" : "no"} • passphrase: {k.has_passphrase ? "yes" : "no"}
-                        </div>
-
-                        <div className="pip-links" style={{ marginTop: 8 }}>
-                          <button className="pip-link" type="button" onClick={() => deleteKey(k.id)} disabled={busy}>
-                            DELETE
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+              <div className="pip-muted">
+                Safe is open. (Key management UI can sit here — once vault endpoints are confirmed working.)
+              </div>
             )}
           </div>
         </div>
