@@ -1,37 +1,40 @@
-// app/api/proxy/route.js
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const base = (process.env.UPSTREAM_API_URL || process.env.RENDER_API_URL || process.env.API_URL || "")
-    .trim()
-    .replace(/\/+$/, "");
+  const base = (process.env.UPSTREAM_API_URL ||
+    process.env.RENDER_API_URL ||
+    process.env.UPSTREAM_URL ||
+    "").trim().replace(/\/+$/, "");
 
-  const healthUrl = base ? `${base}/health` : null;
+  if (!base) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Missing UPSTREAM_API_URL/RENDER_API_URL on Vercel" }),
+      { status: 500, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+    );
+  }
 
+  const healthUrl = `${base}/health`;
   let upstreamStatus = null;
   let upstreamBody = null;
 
-  if (healthUrl) {
-    try {
-      const r = await fetch(healthUrl, { cache: "no-store" });
-      upstreamStatus = r.status;
-      const ct = r.headers.get("content-type") || "";
-      upstreamBody = ct.includes("application/json") ? await r.json() : await r.text();
-    } catch (e) {
-      upstreamBody = String(e?.message || e);
-    }
+  try {
+    const r = await fetch(healthUrl, { cache: "no-store" });
+    upstreamStatus = r.status;
+    const ct = r.headers.get("content-type") || "";
+    upstreamBody = ct.includes("application/json") ? await r.json() : await r.text();
+  } catch (e) {
+    upstreamBody = String(e?.message || e);
   }
 
   return new Response(
     JSON.stringify({
       ok: true,
-      time: new Date().toISOString(),
-      hasUpstreamEnv: !!base,
-      upstreamBase: base || null,
-      upstreamHealthUrl: healthUrl,
+      upstreamBase: base,
+      healthUrl,
       upstreamStatus,
       upstreamBody,
+      time: new Date().toISOString(),
     }),
     { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
   );
