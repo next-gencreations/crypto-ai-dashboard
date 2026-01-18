@@ -1,90 +1,43 @@
 // app/api/proxy/_lib.js
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export function getUpstreamBase() {
-  const base = (process.env.API_URL || "").replace(/\/+$/, "");
-
-  // IMPORTANT:
-  // During Vercel build/prerender, env vars may not be available.
-  // Don't throw here—return null so the route can respond gracefully.
-  if (!base) return null;
+function upstreamBase() {
+  const base = (
+    process.env.UPSTREAM_API_URL ||
+    process.env.RENDER_API_URL ||
+    process.env.API_URL ||          // keep compatibility
+    process.env.UPSTREAM_URL ||
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
 
   return base;
 }
 
-export async function proxyGet(path) {
-  const base = getUpstreamBase();
+export async function proxyGet(pathname) {
+  const base = upstreamBase();
   if (!base) {
-    return { ok: false, error: "API_URL not configured (missing in Vercel env vars)" };
-  }
-
-  const url = `${base}${path}`;
-
-  const res = await fetch(url, {
-    method: "GET",
-    cache: "no-store",
-    headers: { accept: "application/json" },
-  });
-
-  const txt = await res.text().catch(() => "");
-
-  if (!res.ok) {
     return {
       ok: false,
-      upstream_status: res.status,
-      upstream_statusText: res.statusText,
-      upstream_url: url,
-      error: txt ? txt.slice(0, 500) : "Upstream failed",
+      error:
+        "No upstream set. Add UPSTREAM_API_URL (recommended) or RENDER_API_URL (or API_URL) on Vercel.",
     };
   }
+
+  const url = `${base}${pathname.startsWith("/") ? "" : "/"}${pathname}`;
 
   try {
-    return txt ? JSON.parse(txt) : null;
-  } catch {
-    return {
-      ok: false,
-      upstream_url: url,
-      error: `Upstream returned non-JSON: ${txt.slice(0, 200)}`,
-    };
-  }
-}
+    const r = await fetch(url, { cache: "no-store" });
+    const ct = r.headers.get("content-type") || "";
+    const body = ct.includes("application/json") ? await r.json() : await r.text();
 
-export async function proxyPost(path, body) {
-  const base = getUpstreamBase();
-  if (!base) {
-    return { ok: false, error: "API_URL not configured (missing in Vercel env vars)" };
-  }
+    // If upstream returns JSON with ok/enabled fields, pass it through.
+    if (typeof body === "object" && body !== null) return body;
 
-  const url = `${base}${path}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify(body || {}),
-  });
-
-  const txt = await res.text().catch(() => "");
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      upstream_status: res.status,
-      upstream_statusText: res.statusText,
-      upstream_url: url,
-      error: txt ? txt.slice(0, 500) : "Upstream failed",
-    };
-  }
-
-  try {
-    return txt ? JSON.parse(txt) : null;
-  } catch {
-    return {
-      ok: false,
-      upstream_url: url,
-      error: `Upstream returned non-JSON: ${txt.slice(0, 200)}`,
-    };
+    return { ok: r.ok, status: r.status, body };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
   }
 }
