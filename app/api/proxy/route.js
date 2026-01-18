@@ -1,41 +1,41 @@
+// app/api/proxy/route.js
+// Convenience endpoint so visiting /api/proxy in a browser returns something useful.
+// It calls the upstream /health endpoint using the same env var base as the catch-all proxy.
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const base = (process.env.UPSTREAM_API_URL ||
+function upstreamBase() {
+  return (process.env.UPSTREAM_API_URL ||
     process.env.RENDER_API_URL ||
     process.env.UPSTREAM_URL ||
-    "").trim().replace(/\/+$/, "");
+    "")
+    .trim()
+    .replace(/\/+$/, "");
+}
 
+export async function GET() {
+  const base = upstreamBase();
   if (!base) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Missing UPSTREAM_API_URL/RENDER_API_URL on Vercel" }),
+      JSON.stringify({ ok: false, error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel." }),
       { status: 500, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
     );
   }
 
-  const healthUrl = `${base}/health`;
-  let upstreamStatus = null;
-  let upstreamBody = null;
-
+  const url = `${base}/health`;
   try {
-    const r = await fetch(healthUrl, { cache: "no-store" });
-    upstreamStatus = r.status;
+    const r = await fetch(url, { cache: "no-store" });
     const ct = r.headers.get("content-type") || "";
-    upstreamBody = ct.includes("application/json") ? await r.json() : await r.text();
+    const body = ct.includes("application/json") ? await r.json() : await r.text();
+    return new Response(
+      JSON.stringify({ ok: r.ok, upstreamBase: base, upstreamHealthUrl: url, upstreamStatus: r.status, upstreamBody: body }),
+      { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+    );
   } catch (e) {
-    upstreamBody = String(e?.message || e);
+    return new Response(
+      JSON.stringify({ ok: false, upstreamBase: base, upstreamHealthUrl: url, error: String(e?.message || e) }),
+      { status: 502, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+    );
   }
-
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      upstreamBase: base,
-      healthUrl,
-      upstreamStatus,
-      upstreamBody,
-      time: new Date().toISOString(),
-    }),
-    { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
-  );
 }
