@@ -1,14 +1,17 @@
+// app/api/proxy/debug/route.js
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const base =
-    (process.env.UPSTREAM_API_URL ||
-      process.env.RENDER_API_URL ||
-      process.env.UPSTREAM_URL ||
-      "")
-      .trim()
-      .replace(/\/+$/, "");
+  const base = (
+    process.env.API_URL ||
+    process.env.UPSTREAM_API_URL ||
+    process.env.RENDER_API_URL ||
+    process.env.UPSTREAM_URL ||
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
 
   const testUrl = base ? `${base}/health` : null;
 
