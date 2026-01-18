@@ -12,17 +12,10 @@ export async function proxyGet(path) {
     cache: "no-store",
   });
 
-  const text = await res.text();
-  try {
-    return new Response(text, {
-      status: res.status,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch {
-    return new Response(JSON.stringify({ ok: false, raw: text }), {
-      status: 500,
-    });
-  }
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export async function proxyPost(path, body) {
@@ -33,15 +26,8 @@ export async function proxyPost(path, body) {
     cache: "no-store",
   });
 
-  const text = await res.text();
-  try {
-    return new Response(text, {
-      status: res.status,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch {
-    return new Response(JSON.stringify({ ok: false, raw: text }), {
-      status: 500,
-    });
-  }
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
