@@ -1,542 +1,369 @@
-// app/vault/page.js
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-async function readJson(res) {
-  const txt = await res.text().catch(() => "");
+async function getJson(url, token) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: token ? { "X-Vault-Token": token } : {},
+    cache: "no-store",
+  });
+
+  const txt = await res.text();
+  let data = null;
+
   try {
-    return txt ? JSON.parse(txt) : {};
+    data = txt ? JSON.parse(txt) : null;
   } catch {
-    return { _raw: txt };
+    data = { _raw: txt };
   }
+
+  if (!res.ok) {
+    const msg = (data && (data.error || data.detail || data.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data || {};
 }
 
-async function getJson(url) {
-  const res = await fetch(url, { method: "GET", cache: "no-store", headers: { accept: "application/json" } });
-  const data = await readJson(res);
-  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  return data;
-}
-
-async function postJson(url, body) {
+async function postJson(url, token, body) {
   const res = await fetch(url, {
     method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", accept: "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-Vault-Token": token } : {}),
+    },
     body: JSON.stringify(body || {}),
+    cache: "no-store",
   });
-  const data = await readJson(res);
-  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  return data;
+
+  const txt = await res.text();
+  let data = null;
+
+  try {
+    data = txt ? JSON.parse(txt) : null;
+  } catch {
+    data = { _raw: txt };
+  }
+
+  if (!res.ok) {
+    const msg = (data && (data.error || data.detail || data.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data || {};
 }
 
-async function delJson(url) {
-  const res = await fetch(url, { method: "DELETE", cache: "no-store", headers: { accept: "application/json" } });
-  const data = await readJson(res);
-  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  return data;
-}
-
-function SafeDoor({ locked, statusText }) {
-  return (
-    <div style={{ display: "grid", placeItems: "center", padding: 10 }}>
-      <div
-        style={{
-          width: "min(560px, 94vw)",
-          borderRadius: 18,
-          border: "1px solid rgba(120,255,170,0.22)",
-          background:
-            "radial-gradient(circle at 50% 35%, rgba(120,255,170,0.10), rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.65))",
-          boxShadow: "0 0 28px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.45)",
-          padding: 14,
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", letterSpacing: 3, fontSize: 13 }}>
-          <span>VAULT SAFE</span>
-          <span style={{ opacity: 0.85 }}>{locked ? "LOCKED" : "OPEN"}</span>
-        </div>
-
-        <div
-          style={{
-            marginTop: 10,
-            height: 230,
-            borderRadius: 16,
-            border: "1px solid rgba(120,255,170,0.18)",
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            position: "relative",
-          }}
-        >
-          <div
-            style={{
-              width: 150,
-              height: 150,
-              borderRadius: "50%",
-              border: "1px solid rgba(120,255,170,0.30)",
-              background: "rgba(0,0,0,0.35)",
-              boxShadow: "0 0 18px rgba(120,255,170,0.18)",
-              transform: locked ? "rotate(0deg)" : "rotate(28deg)",
-              transition: "transform 600ms ease",
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
-            <div
-              style={{
-                width: 96,
-                height: 96,
-                borderRadius: "50%",
-                border: "1px solid rgba(120,255,170,0.24)",
-                background: "rgba(0,0,0,0.35)",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 900,
-                letterSpacing: 2,
-                fontSize: 18,
-              }}
-            >
-              {locked ? "🔒" : "✅"}
-            </div>
-          </div>
-
-          <div
-            className="wrap-anywhere"
-            style={{
-              position: "absolute",
-              left: 12,
-              right: 12,
-              bottom: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(120,255,170,0.18)",
-              background: "rgba(0,0,0,0.35)",
-              padding: "10px 12px",
-              fontSize: 13,
-              letterSpacing: 1.3,
-              opacity: 0.95,
-            }}
-          >
-            {statusText}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PinPad({ onSubmit, disabled, actionLabel = "UNLOCK" }) {
-  const [pin, setPin] = useState("");
-
-  function press(n) {
-    if (disabled) return;
-    if (pin.length >= 12) return;
-    setPin((p) => p + String(n));
-  }
-  function del() {
-    if (disabled) return;
-    setPin((p) => p.slice(0, -1));
-  }
-  function clear() {
-    if (disabled) return;
-    setPin("");
-  }
-  async function submit() {
-    if (disabled) return;
-    await onSubmit(pin);
-    setPin("");
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderRadius: 12,
-          border: "1px solid rgba(120,255,170,0.18)",
-          background: "rgba(0,0,0,0.35)",
-          padding: "10px 12px",
-          letterSpacing: 6,
-        }}
-      >
-        <span>{"•".repeat(pin.length)}</span>
-        <button className="pip-link" type="button" onClick={del} disabled={disabled}>
-          ⌫
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className="pip-link"
-            onClick={() => press(n)}
-            disabled={disabled}
-            style={{ padding: "14px 0" }}
-          >
-            {n}
-          </button>
-        ))}
-        <button type="button" className="pip-link" onClick={clear} disabled={disabled} style={{ padding: "14px 0" }}>
-          C
-        </button>
-        <button type="button" className="pip-link" onClick={() => press(0)} disabled={disabled} style={{ padding: "14px 0" }}>
-          0
-        </button>
-        <button type="button" className="pip-link" onClick={submit} disabled={disabled} style={{ padding: "14px 0" }}>
-          ↵
-        </button>
-      </div>
-
-      <button className="pip-link" type="button" onClick={submit} disabled={disabled}>
-        {actionLabel}
-      </button>
-    </div>
-  );
+function fmtSecs(n) {
+  const s = Math.max(0, Number(n || 0));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${r}s`;
 }
 
 export default function VaultPage() {
-  const [status, setStatus] = useState("Vault ready.");
-  const [busy, setBusy] = useState(false);
-
   const [vaultEnabled, setVaultEnabled] = useState(false);
   const [pinSet, setPinSet] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
-  const [ttlSec, setTtlSec] = useState(300);
+  const [ttlSec, setTtlSec] = useState(0);
 
-  const [showPin, setShowPin] = useState(true);
+  const [token, setToken] = useState("");
+  const [pin, setPin] = useState("");
+  const [newPin, setNewPin] = useState("");
 
-  // key form
-  const [exchange, setExchange] = useState("BINANCE");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-  const [keysList, setKeysList] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [last, setLast] = useState("");
 
-  const subtitle = useMemo(() => {
-    return `Vault · Mode: PAPER (live locked) · ${unlocked ? "OPEN" : "LOCKED"}`;
-  }, [unlocked]);
+  const doorLabel = useMemo(() => {
+    if (!vaultEnabled) return "DISABLED";
+    if (unlocked) return "UNLOCKED";
+    if (pinSet) return "LOCKED";
+    return "PIN NOT SET";
+  }, [vaultEnabled, unlocked, pinSet]);
 
-  async function refreshStatus() {
-    const s = await getJson("/api/proxy/vault/status");
-    setVaultEnabled(!!s?.enabled);
-    setPinSet(!!s?.pin_set);
-    setUnlocked(!!s?.unlocked);
-    setTtlSec(Number(s?.ttl_sec || 300));
-    return s;
+  function normalizeVaultStatus(out) {
+    const o = out && typeof out === "object" ? out : {};
+
+    // Accept both /vault/status and /health style keys
+    const enabled =
+      typeof o.enabled === "boolean"
+        ? o.enabled
+        : typeof o.vault_enabled === "boolean"
+        ? o.vault_enabled
+        : false;
+
+    const unlockedVal =
+      typeof o.unlocked === "boolean"
+        ? o.unlocked
+        : typeof o.vault_unlocked === "boolean"
+        ? o.vault_unlocked
+        : false;
+
+    const pinSetVal =
+      typeof o.pin_set === "boolean"
+        ? o.pin_set
+        : typeof o.pinSet === "boolean"
+        ? o.pinSet
+        : false;
+
+    const ttl = Number(o.ttl_sec ?? o.ttl ?? 0) || 0;
+
+    return { enabled, unlocked: unlockedVal, pin_set: pinSetVal, ttl_sec: ttl, raw: o };
   }
 
-  async function refreshKeys() {
-    const out = await getJson("/api/proxy/vault/keys");
-    setKeysList(out?.keys || []);
+  async function refreshStatus() {
+    setBusy(true);
+    try {
+      // Primary: vault/status (preferred)
+      let out = await getJson("/api/proxy/vault/status", "");
+      let norm = normalizeVaultStatus(out);
+
+      // If it looks like we accidentally got a /health style payload (or missing expected keys),
+      // still honor it instead of showing DISABLED.
+      if (!("enabled" in (out || {})) && ("vault_enabled" in (out || {}))) {
+        norm = normalizeVaultStatus(out);
+      }
+
+      setVaultEnabled(!!norm.enabled);
+      setPinSet(!!norm.pin_set);
+      setUnlocked(!!norm.unlocked);
+      setTtlSec(Number(norm.ttl_sec || 0));
+
+      // Friendly message
+      if (!norm.enabled) {
+        setMsg(
+          "Vault disabled on backend. Check Render env: VAULT_MASTER_KEY and restart service. | endpoint: /api/proxy/vault/status"
+        );
+      } else if (!norm.pin_set) {
+        setMsg("Vault enabled. PIN not set yet. Use SET PIN.");
+      } else if (!norm.unlocked) {
+        setMsg("Vault enabled. Locked. Unlock with PIN or Biometrics (if supported).");
+      } else {
+        setMsg(`Vault unlocked. TTL: ${fmtSecs(norm.ttl_sec)}.`);
+      }
+
+      setLast(new Date().toLocaleTimeString());
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   useEffect(() => {
-    (async () => {
-      try {
-        setStatus("Checking vault...");
-        const s = await refreshStatus();
-        if (s?.enabled && s?.unlocked) await refreshKeys();
-        setStatus(
-          s?.enabled
-            ? (s?.unlocked ? "Vault is open." : (s?.pin_set ? "Vault locked. Enter PIN." : "No PIN set. Create one."))
-            : "Vault disabled: VAULT_MASTER_KEY not set on backend."
-        );
-      } catch (e) {
-        setStatus(`Vault error: ${String(e?.message || e)}`);
-      }
-    })();
+    refreshStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function setPin(pin) {
+  async function usePinUnlock() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/pin/set", { pin });
-      setStatus(`PIN set. Vault unlocked for ${out?.ttl_sec || ttlSec}s.`);
+      const out = await postJson("/api/proxy/vault/unlock", token, { pin });
+      setToken(out?.token || token);
+      setMsg(out?.message || "Unlocked.");
       await refreshStatus();
-      await refreshKeys();
     } catch (e) {
-      setStatus(`Set PIN failed: ${String(e?.message || e)}`);
+      setMsg(String(e?.message || e));
     } finally {
       setBusy(false);
     }
   }
 
-  async function unlockWithPin(pin) {
+  async function setPinOnBackend() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/unlock", { pin });
-      setStatus(`Unlocked for ${out?.ttl_sec || ttlSec}s.`);
+      const out = await postJson("/api/proxy/vault/set-pin", token, { pin: newPin });
+      setMsg(out?.message || "PIN set.");
+      setNewPin("");
       await refreshStatus();
-      await refreshKeys();
     } catch (e) {
-      setStatus(`Unlock failed: ${String(e?.message || e)}`);
+      setMsg(String(e?.message || e));
     } finally {
       setBusy(false);
     }
   }
 
-  async function lockNow() {
+  async function lockVault() {
     setBusy(true);
     try {
-      await postJson("/api/proxy/vault/lock", {});
+      const out = await postJson("/api/proxy/vault/lock", token, {});
+      setMsg(out?.message || "Locked.");
       await refreshStatus();
-      setKeysList([]);
-      setStatus("Vault locked.");
     } catch (e) {
-      setStatus(`Lock failed: ${String(e?.message || e)}`);
+      setMsg(String(e?.message || e));
     } finally {
       setBusy(false);
     }
   }
 
-  async function saveKeys() {
+  async function unlockWithPasskey() {
+    // optional: depends on your implementation on backend
     setBusy(true);
     try {
-      if (!unlocked) throw new Error("Vault locked.");
-      if (!apiKey.trim() || !apiSecret.trim()) throw new Error("API key + secret required.");
-
-      await postJson("/api/proxy/vault/keys/add", {
-        exchange,
-        api_key: apiKey.trim(),
-        api_secret: apiSecret.trim(),
-        passphrase: passphrase.trim(),
-      });
-
-      setStatus("Saved (encrypted).");
-      setApiKey("");
-      setApiSecret("");
-      setPassphrase("");
-      await refreshKeys();
+      const out = await postJson("/api/proxy/vault/webauthn/begin", token, {});
+      setMsg(out?.message || "Biometrics not configured on this device.");
+      await refreshStatus();
     } catch (e) {
-      setStatus(`Save failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function deleteKey(id) {
-    setBusy(true);
-    try {
-      if (!unlocked) throw new Error("Vault locked.");
-      await delJson(`/api/proxy/vault/keys/delete/${id}`);
-      setStatus("Deleted.");
-      await refreshKeys();
-    } catch (e) {
-      setStatus(`Delete failed: ${String(e?.message || e)}`);
+      setMsg(String(e?.message || e));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="pip-crt">
-      <div className="pip-shell">
-        <div className="pip-topbar">
-          <div className="pip-topbar-left">
-            <div className="pip-title">PIP-TRADE 3000</div>
-            <div className="pip-sub wrap-anywhere" title={subtitle}>
-              {subtitle}
-            </div>
+    <main style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 28, letterSpacing: 2, margin: "6px 0 10px" }}>VAULT SAFE</h1>
+
+      <div
+        style={{
+          border: "1px solid rgba(119,255,154,0.25)",
+          borderRadius: 14,
+          padding: 16,
+          boxShadow: "0 0 40px rgba(119,255,154,0.08) inset",
+          background: "rgba(0, 27, 13, 0.55)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div style={{ fontSize: 14, opacity: 0.9 }}>
+            <b>Vault</b> · {vaultEnabled ? "ENABLED" : "DISABLED"} · {pinSet ? "PIN SET" : "PIN NOT SET"} ·{" "}
+            {unlocked ? "UNLOCKED" : "LOCKED"}
           </div>
-          <div className="pip-topbar-right">
-            <div className="pip-badge">{unlocked ? "SAFE OPEN" : "SAFE LOCKED"}</div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>Last: {last || "—"}</div>
+        </div>
+
+        <div style={{ marginTop: 14, padding: 14, borderRadius: 14, border: "1px solid rgba(119,255,154,0.18)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 16, letterSpacing: 2 }}>
+              <b>VAULT SAFE</b>
+            </div>
+            <div style={{ fontSize: 14, letterSpacing: 2, opacity: 0.9 }}>{doorLabel}</div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              background: "rgba(0,0,0,0.25)",
+              border: "1px solid rgba(119,255,154,0.12)",
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {msg || "—"}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="btn" disabled={busy} onClick={unlockWithPasskey}>
+              UNLOCK (BIOMETRICS)
+            </button>
+            <button className="btn" disabled={busy || !pin} onClick={usePinUnlock}>
+              USE PIN
+            </button>
+            <button className="btn" disabled={busy || !newPin} onClick={setPinOnBackend}>
+              SET PIN
+            </button>
+            <button className="btn" disabled={busy} onClick={lockVault}>
+              LOCK
+            </button>
+            <button className="btn" disabled={busy} onClick={refreshStatus}>
+              REFRESH
+            </button>
+          </div>
+
+          <div style={{ marginTop: 14, fontSize: 12, opacity: 0.85 }}>
+            Keys are stored encrypted on the server. Do <b>NOT</b> enable withdrawal permissions. Withdrawals remain only
+            inside the exchange app.
           </div>
         </div>
 
-        <div className="pip-links">
-          <Link className="pip-link" href="/">HOME</Link>
-          <Link className="pip-link" href="/candles">CANDLES</Link>
-          <Link className="pip-link" href="/crypto">CRYPTO</Link>
-          <Link className="pip-link active" href="/vault">VAULT</Link>
-        </div>
+        <div style={{ marginTop: 14, padding: 14, borderRadius: 14, border: "1px solid rgba(119,255,154,0.18)" }}>
+          <div style={{ fontSize: 16, letterSpacing: 2 }}>
+            <b>KEY VAULT</b>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
+            {vaultEnabled
+              ? "Unlock the safe to add/manage keys."
+              : "Vault is disabled on backend. Your Render '/vault/status' must show \"enabled\": true."}
+          </div>
 
-        <div className="pip-content">
-          <div className="pip-panel">
-            <div className="pip-heading">VAULT SAFE</div>
-
-            <SafeDoor locked={!unlocked} statusText={status} />
-
-            <div className="pip-muted wrap-anywhere" style={{ marginTop: 10 }}>
-              enabled: {String(vaultEnabled)} • pin_set: {String(pinSet)} • ttl: {String(ttlSec)}s
-            </div>
-
-            <div className="pip-links" style={{ marginTop: 10 }}>
-              <button
-                className="pip-link"
-                type="button"
-                onClick={() => setShowPin((s) => !s)}
-                disabled={busy || !vaultEnabled}
-              >
-                {showPin ? "HIDE PIN PAD" : "SHOW PIN PAD"}
-              </button>
-
-              <button className="pip-link" type="button" onClick={lockNow} disabled={busy || !vaultEnabled}>
-                LOCK
-              </button>
-
-              <button
-                className="pip-link"
-                type="button"
-                onClick={async () => {
-                  try {
-                    setBusy(true);
-                    await refreshStatus();
-                    if (vaultEnabled && unlocked) await refreshKeys();
-                    setStatus("Status refreshed.");
-                  } catch (e) {
-                    setStatus(`Refresh failed: ${String(e?.message || e)}`);
-                  } finally {
-                    setBusy(false);
-                  }
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>X-Vault-Token (optional)</div>
+              <input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="paste token here (if you have one)"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(119,255,154,0.25)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "#77ff9a",
+                  outline: "none",
                 }}
-                disabled={busy}
-              >
-                REFRESH
-              </button>
+              />
             </div>
 
-            {!vaultEnabled && (
-              <div className="pip-muted pip-footnote wrap-anywhere" style={{ marginTop: 12 }}>
-                Vault is disabled because the backend (Render) does not have <b>VAULT_MASTER_KEY</b> set (or it’s invalid).
-                Set it on Render, redeploy, then refresh this page.
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>PIN</div>
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="enter PIN"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(119,255,154,0.25)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "#77ff9a",
+                  outline: "none",
+                }}
+              />
+            </div>
 
-            {vaultEnabled && showPin && (
-              <div style={{ marginTop: 14 }}>
-                <div className="pip-muted" style={{ marginBottom: 8 }}>
-                  {pinSet ? "ENTER PIN TO UNLOCK" : "SET A NEW PIN (4–12 digits)"}
-                </div>
-
-                <PinPad onSubmit={pinSet ? unlockWithPin : setPin} disabled={busy} actionLabel={pinSet ? "UNLOCK" : "SET PIN"} />
-
-                <div className="pip-muted pip-footnote" style={{ marginTop: 12 }}>
-                  Keys are stored encrypted on the server. Do NOT enable withdrawal permissions.
-                  Withdrawals remain only inside the exchange app.
-                </div>
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>New PIN</div>
+              <input
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value)}
+                placeholder="set a new PIN"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(119,255,154,0.25)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "#77ff9a",
+                  outline: "none",
+                }}
+              />
+            </div>
           </div>
 
-          <div className="pip-panel" style={{ marginTop: 14 }}>
-            <div className="pip-heading">KEY VAULT</div>
-
-            {!unlocked ? (
-              <div className="pip-muted">Unlock the safe to add/manage keys.</div>
-            ) : (
-              <>
-                <div className="pip-row" style={{ borderBottom: "none" }}>
-                  <div className="pip-k">EXCHANGE</div>
-                  <select
-                    value={exchange}
-                    onChange={(e) => setExchange(e.target.value)}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  >
-                    <option value="BINANCE">BINANCE</option>
-                    <option value="BYBIT">BYBIT</option>
-                    <option value="KRAKEN">KRAKEN</option>
-                  </select>
-                </div>
-
-                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-                  <input
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="API KEY"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="API SECRET"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="PASSPHRASE (optional)"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-
-                  <button className="pip-link" type="button" onClick={saveKeys} disabled={busy}>
-                    SAVE (ENCRYPT)
-                  </button>
-                </div>
-
-                <div className="pip-heading" style={{ marginTop: 18 }}>
-                  STORED KEYS (MASKED)
-                </div>
-
-                {keysList.length === 0 ? (
-                  <div className="pip-muted">No keys stored yet.</div>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {keysList.map((k) => (
-                      <div
-                        key={k.id}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid rgba(120,255,170,0.18)",
-                          background: "rgba(0,0,0,0.25)",
-                          padding: 10,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                          <div className="wrap-anywhere" style={{ fontWeight: 800, letterSpacing: 2 }}>
-                            {(k.exchange || "").toUpperCase()} • {k.api_key_masked || "****"}
-                          </div>
-                          <div className="pip-muted wrap-anywhere" style={{ fontSize: 12 }}>
-                            {k.created || ""}
-                          </div>
-                        </div>
-
-                        <div className="pip-links" style={{ marginTop: 8 }}>
-                          <button className="pip-link" type="button" onClick={() => deleteKey(k.id)} disabled={busy}>
-                            DELETE
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>
+            Session TTL: <b>{fmtSecs(ttlSec)}</b>
           </div>
         </div>
       </div>
-    </div>
+
+      <style jsx>{`
+        .btn {
+          padding: 10px 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(119, 255, 154, 0.28);
+          background: rgba(0, 0, 0, 0.22);
+          color: #77ff9a;
+          letter-spacing: 1px;
+          cursor: pointer;
+        }
+        .btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}</style>
+    </main>
   );
 }
