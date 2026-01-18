@@ -1,735 +1,424 @@
-// app/vault/page.js
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-/* =========================
-   Helpers
-   ========================= */
-
-function bufferToBase64Url(buf) {
-  const bytes = new Uint8Array(buf);
-  let str = "";
-  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
-  const b64 = btoa(str);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function base64UrlToBuffer(b64url) {
-  const b64 = (b64url || "").replace(/-/g, "+").replace(/_/g, "/");
-  const pad = b64.length % 4 ? "=".repeat(4 - (b64.length % 4)) : "";
-  const raw = atob(b64 + pad);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out.buffer;
-}
-
-async function postJson(url, body, token) {
-  const res = await fetch(url, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      accept: "application/json",
-      ...(token ? { "X-Vault-Token": token } : {}),
-    },
-    body: JSON.stringify(body || {}),
-  });
-
-  const txt = await res.text().catch(() => "");
-  let data = {};
-  try {
-    data = txt ? JSON.parse(txt) : {};
-  } catch {
-    // ignore
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  }
-  return data;
-}
-
-async function getJson(url, token) {
-  const res = await fetch(url, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      accept: "application/json",
-      ...(token ? { "X-Vault-Token": token } : {}),
-    },
-  });
-
-  const txt = await res.text().catch(() => "");
-  let data = {};
-  try {
-    data = txt ? JSON.parse(txt) : {};
-  } catch {
-    // ignore
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  }
-  return data;
-}
-
-/* =========================
-   UI bits
-   ========================= */
-
-function SafeDoor({ stateLabel, statusText }) {
-  return (
-    <div style={{ display: "grid", placeItems: "center", padding: 10 }}>
-      <div
-        style={{
-          width: "min(560px, 94vw)",
-          borderRadius: 18,
-          border: "1px solid rgba(120,255,170,0.22)",
-          background:
-            "radial-gradient(circle at 50% 35%, rgba(120,255,170,0.10), rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.65))",
-          boxShadow: "0 0 28px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.45)",
-          padding: 14,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 10,
-            letterSpacing: 3,
-            fontSize: 13,
-            flexWrap: "wrap",
-          }}
-        >
-          <span>VAULT SAFE</span>
-          <span style={{ opacity: 0.85 }} className="wrap-anywhere">
-            {stateLabel}
-          </span>
-        </div>
-
-        <div
-          style={{
-            marginTop: 10,
-            height: 230,
-            borderRadius: 16,
-            border: "1px solid rgba(120,255,170,0.18)",
-            background: "rgba(0,0,0,0.35)",
-            display: "grid",
-            placeItems: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              width: 150,
-              height: 150,
-              borderRadius: "50%",
-              border: "1px solid rgba(120,255,170,0.30)",
-              background: "rgba(0,0,0,0.35)",
-              boxShadow: "0 0 18px rgba(120,255,170,0.18)",
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
-            <div
-              style={{
-                width: 96,
-                height: 96,
-                borderRadius: "50%",
-                border: "1px solid rgba(120,255,170,0.24)",
-                background: "rgba(0,0,0,0.35)",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 900,
-                letterSpacing: 2,
-                fontSize: 18,
-              }}
-            >
-              {stateLabel.includes("OPEN") ? "✅" : stateLabel.includes("DISABLED") ? "⛔" : "🔒"}
-            </div>
-          </div>
-
-          <div
-            style={{
-              position: "absolute",
-              left: 12,
-              right: 12,
-              bottom: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(120,255,170,0.18)",
-              background: "rgba(0,0,0,0.35)",
-              padding: "10px 12px",
-              fontSize: 13,
-              letterSpacing: 1.1,
-              opacity: 0.95,
-              overflow: "hidden",
-            }}
-            className="wrap-anywhere"
-          >
-            {statusText}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PinPad({ onSubmit, disabled, title = "PIN" }) {
-  const [pin, setPin] = useState("");
-
-  function press(n) {
-    if (disabled) return;
-    if (pin.length >= 10) return;
-    setPin((p) => p + String(n));
-  }
-  function del() {
-    if (disabled) return;
-    setPin((p) => p.slice(0, -1));
-  }
-  function clear() {
-    if (disabled) return;
-    setPin("");
-  }
-  async function submit() {
-    if (disabled) return;
-    await onSubmit(pin);
-    setPin("");
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div className="pip-muted" style={{ letterSpacing: "0.12em" }}>
-        {title}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderRadius: 12,
-          border: "1px solid rgba(120,255,170,0.18)",
-          background: "rgba(0,0,0,0.35)",
-          padding: "10px 12px",
-          letterSpacing: 6,
-        }}
-      >
-        <span>{"•".repeat(pin.length)}</span>
-        <button className="pip-link" type="button" onClick={del} disabled={disabled}>
-          ⌫
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className="pip-link"
-            onClick={() => press(n)}
-            disabled={disabled}
-            style={{ padding: "14px 0" }}
-          >
-            {n}
-          </button>
-        ))}
-        <button type="button" className="pip-link" onClick={clear} disabled={disabled} style={{ padding: "14px 0" }}>
-          C
-        </button>
-        <button
-          type="button"
-          className="pip-link"
-          onClick={() => press(0)}
-          disabled={disabled}
-          style={{ padding: "14px 0" }}
-        >
-          0
-        </button>
-        <button type="button" className="pip-link" onClick={submit} disabled={disabled} style={{ padding: "14px 0" }}>
-          ENTER
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   Page
-   ========================= */
-
 export default function VaultPage() {
-  const [busy, setBusy] = useState(false);
+  const API_BASE = useMemo(() => {
+    // Preferred: NEXT_PUBLIC_API_URL="/api/proxy" (your Vercel setup)
+    // Fallback: "/api/proxy"
+    const v = (process.env.NEXT_PUBLIC_API_URL || "/api/proxy").trim();
+    return v.endsWith("/") ? v.slice(0, -1) : v;
+  }, []);
 
-  // server status
-  const [vaultEnabled, setVaultEnabled] = useState(false);
-  const [pinSet, setPinSet] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
-  const [ttlSec, setTtlSec] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [lastUrl, setLastUrl] = useState("");
+  const [lastStatus, setLastStatus] = useState(null);
 
-  // status line
-  const [status, setStatus] = useState("Loading vault status…");
+  const [status, setStatus] = useState({
+    ok: false,
+    enabled: false,
+    unlocked: false,
+    pin_set: false,
+    ttl_sec: 0,
+    expires: 0,
+  });
 
-  // memory-only token (never localStorage)
-  const [vaultToken, setVaultToken] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
-  // UI toggles
-  const [showPinUnlock, setShowPinUnlock] = useState(false);
-  const [showPinSet, setShowPinSet] = useState(false);
+  const [pin, setPin] = useState("");
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [keys, setKeys] = useState([]);
 
-  // key form
-  const [exchange, setExchange] = useState("BINANCE");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-  const [keysList, setKeysList] = useState([]);
+  const [newExchange, setNewExchange] = useState("BINANCE");
+  const [newApiKey, setNewApiKey] = useState("");
+  const [newApiSecret, setNewApiSecret] = useState("");
+  const [newPassphrase, setNewPassphrase] = useState("");
 
-  const locked = !unlocked;
+  // ---------- helpers ----------
+  async function fetchJson(path, opts = {}) {
+    const url = path.startsWith("http") ? path : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+    setLastUrl(url);
 
-  const subtitle = useMemo(() => {
-    const parts = [];
-    parts.push(`Vault · ${vaultEnabled ? "ENABLED" : "DISABLED"}`);
-    parts.push(pinSet ? "PIN SET" : "PIN NOT SET");
-    parts.push(unlocked ? "OPEN" : "LOCKED");
-    if (ttlSec) parts.push(`TTL ${ttlSec}s`);
-    return parts.join(" · ");
-  }, [vaultEnabled, pinSet, unlocked, ttlSec]);
+    const res = await fetch(url, {
+      cache: "no-store",
+      ...opts,
+      headers: {
+        ...(opts.headers || {}),
+        // send JSON by default
+        ...(opts.body ? { "Content-Type": "application/json" } : {}),
+        Accept: "application/json",
+      },
+    });
 
-  const doorLabel = useMemo(() => {
-    if (!vaultEnabled) return "DISABLED";
-    return unlocked ? "OPEN" : "LOCKED";
-  }, [vaultEnabled, unlocked]);
+    setLastStatus(res.status);
 
-  async function refreshStatus() {
-    setBusy(true);
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    let dataText = "";
+    let data = null;
+
     try {
-      const out = await getJson("/api/proxy/vault/status", "");
-      setVaultEnabled(!!out?.enabled);
-      setPinSet(!!out?.pin_set);
-      setUnlocked(!!out?.unlocked);
-      setTtlSec(Number(out?.ttl_sec || 0));
-
-      // show a friendly message based on actual backend truth
-      if (!out?.enabled) {
-        setStatus("Vault disabled on backend. Check Render env: VAULT_MASTER_KEY and restart service.");
-      } else if (!out?.pin_set) {
-        setStatus("Vault enabled. PIN is not set yet. Use SET PIN, then unlock.");
-      } else if (!out?.unlocked) {
-        setStatus("Vault enabled. Locked. Unlock with biometrics or PIN.");
+      if (ct.includes("application/json")) {
+        data = await res.json();
       } else {
-        setStatus("Vault open.");
+        dataText = await res.text();
       }
     } catch (e) {
-      setStatus(`Status check failed: ${String(e?.message || e)}`);
+      // ignore parse errors; we’ll show diagnostics
+    }
+
+    if (!res.ok) {
+      const detail =
+        (data && (data.error || data.message)) ||
+        (dataText ? dataText.slice(0, 200) : "") ||
+        `HTTP ${res.status}`;
+      throw new Error(detail);
+    }
+
+    if (data == null) {
+      // Not JSON but ok — still return something helpful
+      return { ok: true, raw: dataText };
+    }
+
+    return data;
+  }
+
+  function clearNotices() {
+    setMsg("");
+    setErr("");
+  }
+
+  // ---------- core actions ----------
+  async function loadStatus() {
+    clearNotices();
+    setLoading(true);
+    try {
+      const s = await fetchJson("/vault/status");
+      setStatus({
+        ok: !!s.ok,
+        enabled: !!s.enabled,
+        unlocked: !!s.unlocked,
+        pin_set: !!s.pin_set,
+        ttl_sec: Number(s.ttl_sec || 0),
+        expires: Number(s.expires || 0),
+      });
+
+      // If unlocked, load keys
+      if (s.enabled && s.unlocked) {
+        await loadKeys();
+      } else {
+        setKeys([]);
+      }
+    } catch (e) {
+      setErr(
+        `Vault status check failed. This usually means /api/proxy is not forwarding correctly.\n\n` +
+          `Tried: ${API_BASE}/vault/status\n` +
+          `HTTP: ${lastStatus ?? "?"}\n` +
+          `Error: ${String(e?.message || e)}`
+      );
+      // pessimistic state
+      setStatus((prev) => ({ ...prev, ok: false, enabled: false, unlocked: false }));
+      setKeys([]);
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
 
-  async function refreshKeys(token) {
-    const t = token || vaultToken;
-    if (!t) return;
-    const out = await postJson("/api/proxy/vault/keys/list", {}, t);
-    setKeysList(out?.keys || []);
+  async function loadKeys() {
+    setKeysLoading(true);
+    try {
+      const r = await fetchJson("/vault/keys");
+      setKeys(Array.isArray(r.keys) ? r.keys : []);
+    } catch (e) {
+      setErr(`Could not load keys: ${String(e?.message || e)}`);
+      setKeys([]);
+    } finally {
+      setKeysLoading(false);
+    }
   }
 
+  async function onSetPin() {
+    clearNotices();
+    try {
+      if (!pin || pin.length < 4) throw new Error("PIN must be 4–12 digits.");
+      if (!/^\d{4,12}$/.test(pin)) throw new Error("PIN must be digits only (4–12).");
+
+      const r = await fetchJson("/vault/pin/set", {
+        method: "POST",
+        body: JSON.stringify({ pin }),
+      });
+
+      setMsg("PIN set ✅ Vault is now unlocked (session started).");
+      setPin("");
+      setStatus((s) => ({ ...s, pin_set: true, unlocked: true, enabled: true, ok: true, ttl_sec: r.ttl_sec || s.ttl_sec }));
+      await loadKeys();
+    } catch (e) {
+      setErr(`Set PIN failed: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function onUnlock() {
+    clearNotices();
+    try {
+      if (!pin || pin.length < 4) throw new Error("Enter your PIN to unlock.");
+      const r = await fetchJson("/vault/unlock", {
+        method: "POST",
+        body: JSON.stringify({ pin }),
+      });
+      setMsg("Unlocked ✅");
+      setPin("");
+      setStatus((s) => ({ ...s, unlocked: true, enabled: true, ok: true, expires: r.expires || s.expires, ttl_sec: r.ttl_sec || s.ttl_sec }));
+      await loadKeys();
+    } catch (e) {
+      setErr(`Unlock failed: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function onLock() {
+    clearNotices();
+    try {
+      await fetchJson("/vault/lock", { method: "POST", body: JSON.stringify({}) });
+      setMsg("Locked ✅");
+      setStatus((s) => ({ ...s, unlocked: false }));
+      setKeys([]);
+    } catch (e) {
+      setErr(`Lock failed: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function onAddKey() {
+    clearNotices();
+    try {
+      if (!status.unlocked) throw new Error("Unlock the vault first.");
+      if (!newExchange.trim()) throw new Error("Exchange is required.");
+      if (!newApiKey.trim() || !newApiSecret.trim()) throw new Error("API key + secret are required.");
+
+      await fetchJson("/vault/keys/add", {
+        method: "POST",
+        body: JSON.stringify({
+          exchange: newExchange.trim().toUpperCase(),
+          api_key: newApiKey.trim(),
+          api_secret: newApiSecret.trim(),
+          passphrase: newPassphrase.trim(),
+        }),
+      });
+
+      setMsg("Key saved ✅");
+      setNewApiKey("");
+      setNewApiSecret("");
+      setNewPassphrase("");
+      await loadKeys();
+    } catch (e) {
+      setErr(`Add key failed: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function onDeleteKey(id) {
+    clearNotices();
+    try {
+      if (!status.unlocked) throw new Error("Unlock the vault first.");
+      await fetchJson(`/vault/keys/delete/${id}`, { method: "DELETE" });
+      setMsg("Key deleted ✅");
+      await loadKeys();
+    } catch (e) {
+      setErr(`Delete failed: ${String(e?.message || e)}`);
+    }
+  }
+
+  // ---------- lifecycle ----------
   useEffect(() => {
-    // load status when entering page
-    refreshStatus();
+    loadStatus();
+    // mild poll so the UI updates if session expires
+    const t = setInterval(loadStatus, 15000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function unlockWithPasskey() {
-    setBusy(true);
-    try {
-      // first verify backend is enabled
-      const st = await getJson("/api/proxy/vault/status", "");
-      if (!st?.enabled) throw new Error("Vault disabled on backend (Render).");
-      if (!window.PublicKeyCredential) {
-        setStatus("Passkeys not supported here. Use PIN.");
-        setShowPinUnlock(true);
-        return;
-      }
+  // ---------- UI ----------
+  const card = {
+    border: "1px solid rgba(119,255,154,0.18)",
+    borderRadius: 18,
+    padding: 16,
+    background: "rgba(0,0,0,0.22)",
+    boxShadow: "0 0 40px rgba(0,255,120,0.08)",
+  };
 
-      const opts = await postJson("/api/proxy/vault/webauthn/login/options", {}, "");
-      const pub = opts?.publicKey;
-      if (!pub?.challenge) throw new Error("Missing WebAuthn challenge");
+  const btn = (onClick, disabled = false) => ({
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(119,255,154,0.35)",
+    background: disabled ? "rgba(0,0,0,0.3)" : "rgba(0,50,20,0.35)",
+    color: "#77ff9a",
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontWeight: 700,
+    letterSpacing: 1,
+  });
 
-      const publicKey = {
-        ...pub,
-        challenge: base64UrlToBuffer(pub.challenge),
-        allowCredentials: (pub.allowCredentials || []).map((c) => ({
-          ...c,
-          id: base64UrlToBuffer(c.id),
-        })),
-      };
+  const input = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(119,255,154,0.25)",
+    background: "rgba(0,0,0,0.25)",
+    color: "#77ff9a",
+    outline: "none",
+  };
 
-      const cred = await navigator.credentials.get({ publicKey });
-      if (!cred) throw new Error("No credential returned");
+  const pill = (text, good) => ({
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: `1px solid ${good ? "rgba(119,255,154,0.5)" : "rgba(255,140,140,0.5)"}`,
+    background: good ? "rgba(0,90,30,0.25)" : "rgba(90,0,0,0.25)",
+    color: good ? "#77ff9a" : "#ff9a9a",
+    fontWeight: 800,
+    fontSize: 12,
+    letterSpacing: 1,
+  });
 
-      const assertion = {
-        id: cred.id,
-        rawId: bufferToBase64Url(cred.rawId),
-        type: cred.type,
-        response: {
-          clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
-          authenticatorData: bufferToBase64Url(cred.response.authenticatorData),
-          signature: bufferToBase64Url(cred.response.signature),
-          userHandle: cred.response.userHandle ? bufferToBase64Url(cred.response.userHandle) : null,
-        },
-      };
-
-      const verify = await postJson("/api/proxy/vault/webauthn/login/verify", assertion, "");
-      if (!verify?.ok || !verify?.vault_token) throw new Error("Unlock failed");
-
-      setVaultToken(verify.vault_token);
-      setUnlocked(true);
-      setStatus("Vault unlocked via biometrics.");
-      await refreshStatus();
-      await refreshKeys(verify.vault_token);
-    } catch (e) {
-      setStatus(`Unlock failed: ${String(e?.message || e)}`);
-      setShowPinUnlock(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function unlockWithPin(pin) {
-    setBusy(true);
-    try {
-      const st = await getJson("/api/proxy/vault/status", "");
-      if (!st?.enabled) throw new Error("Vault disabled on backend (Render).");
-      if (!st?.pin_set) throw new Error("PIN not set yet. Use SET PIN first.");
-
-      const out = await postJson("/api/proxy/vault/pin/unlock", { pin }, "");
-      if (!out?.ok || !out?.vault_token) throw new Error("PIN unlock failed");
-      setVaultToken(out.vault_token);
-      setUnlocked(true);
-      setStatus("Vault unlocked via PIN.");
-      await refreshStatus();
-      await refreshKeys(out.vault_token);
-    } catch (e) {
-      setStatus(`PIN unlock failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function setPin(pin) {
-    setBusy(true);
-    try {
-      const st = await getJson("/api/proxy/vault/status", "");
-      if (!st?.enabled) throw new Error("Vault disabled on backend (Render).");
-
-      const out = await postJson("/api/proxy/vault/pin/set", { pin }, "");
-      if (!out?.ok) throw new Error(out?.message || "PIN set failed");
-
-      setStatus(out?.message || "PIN set.");
-      setShowPinSet(false);
-      await refreshStatus();
-    } catch (e) {
-      setStatus(`Set PIN failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function lockNow() {
-    setBusy(true);
-    try {
-      if (vaultToken) {
-        await postJson("/api/proxy/vault/lock", {}, vaultToken).catch(() => {});
-      }
-      setVaultToken("");
-      setUnlocked(false);
-      setStatus("Vault locked.");
-      await refreshStatus();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveKeys() {
-    setBusy(true);
-    try {
-      if (!vaultToken) throw new Error("Vault locked. Unlock first.");
-      if (!apiKey.trim() || !apiSecret.trim()) throw new Error("Key + secret required.");
-
-      const out = await postJson(
-        "/api/proxy/vault/keys/save",
-        {
-          exchange,
-          api_key: apiKey.trim(),
-          api_secret: apiSecret.trim(),
-          passphrase: passphrase.trim(),
-        },
-        vaultToken
-      );
-
-      setStatus(out?.message || "Saved.");
-      setApiKey("");
-      setApiSecret("");
-      setPassphrase("");
-      await refreshKeys(vaultToken);
-    } catch (e) {
-      setStatus(`Save failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function testKey(id) {
-    setBusy(true);
-    try {
-      const out = await postJson("/api/proxy/vault/keys/test", { id }, vaultToken);
-      setStatus(out?.message || "Test OK");
-    } catch (e) {
-      setStatus(`Test failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function deleteKey(id) {
-    setBusy(true);
-    try {
-      const out = await postJson("/api/proxy/vault/keys/delete", { id }, vaultToken);
-      setStatus(out?.message || "Deleted.");
-      await refreshKeys(vaultToken);
-    } catch (e) {
-      setStatus(`Delete failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const statusLine = `API_BASE: ${API_BASE}  |  last: ${lastUrl || "—"}  |  HTTP: ${lastStatus ?? "—"}`;
 
   return (
-    <div className="pip-crt">
-      <div className="pip-shell">
-        <div className="pip-topbar">
-          <div className="pip-topbar-left">
-            <div className="pip-title">PIP-TRADE 3000</div>
-            <div className="pip-sub wrap-anywhere" title={subtitle}>
-              {subtitle}
-            </div>
-          </div>
-          <div className="pip-topbar-right">
-            <div className="pip-badge">{doorLabel === "OPEN" ? "SAFE OPEN" : doorLabel}</div>
-          </div>
+    <div style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: 3 }}>VAULT SAFE</div>
+          <div style={{ opacity: 0.75, fontSize: 12, marginTop: 4 }}>{statusLine}</div>
         </div>
-
-        <div className="pip-links">
-          <Link className="pip-link" href="/">
-            HOME
-          </Link>
-          <Link className="pip-link" href="/candles">
-            CANDLES
-          </Link>
-          <Link className="pip-link" href="/crypto">
-            CRYPTO
-          </Link>
-          <Link className="pip-link active" href="/vault">
-            VAULT
-          </Link>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <span style={pill(`ENABLED: ${status.enabled ? "YES" : "NO"}`, status.enabled)} />
+          <span style={pill(`UNLOCKED: ${status.unlocked ? "YES" : "NO"}`, status.unlocked)} />
+          <span style={pill(`PIN: ${status.pin_set ? "SET" : "NOT SET"}`, status.pin_set)} />
+          <button style={btn(loadStatus, loading)} onClick={loadStatus} disabled={loading}>
+            {loading ? "LOADING…" : "REFRESH"}
+          </button>
         </div>
+      </div>
 
-        <div className="pip-content">
-          <div className="pip-panel">
-            <div className="pip-heading">VAULT SAFE</div>
+      {(msg || err) && (
+        <div style={{ ...card, marginBottom: 14, whiteSpace: "pre-wrap" }}>
+          {msg && <div style={{ color: "#77ff9a", fontWeight: 800 }}>{msg}</div>}
+          {err && <div style={{ color: "#ff9a9a", fontWeight: 800 }}>{err}</div>}
+        </div>
+      )}
 
-            <SafeDoor
-              stateLabel={doorLabel}
-              statusText={
-                status +
-                `  |  endpoint: /api/proxy/vault/status` // tiny debug, helps confirm you're reading the right thing
-              }
+      <div style={{ ...card, marginBottom: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 2, marginBottom: 10 }}>CONTROLS</div>
+
+        {!status.enabled && (
+          <div style={{ opacity: 0.9, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+            Vault is reporting disabled **from the frontend’s point of view**.
+            {"\n\n"}
+            If your Render URL shows `"enabled": true` but this page says disabled, it means the proxy route is not forwarding.
+            {"\n\n"}
+            Try opening: <b>{API_BASE}/vault/status</b> (must return JSON).
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginTop: 12 }}>
+          <div>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>PIN (4–12 digits)</div>
+            <input
+              style={input}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              inputMode="numeric"
+              placeholder="Enter PIN"
             />
-
-            <div className="pip-links" style={{ marginTop: 10 }}>
-              <button className="pip-link" type="button" onClick={unlockWithPasskey} disabled={busy || !vaultEnabled}>
-                UNLOCK (BIOMETRICS)
-              </button>
-
-              <button
-                className="pip-link"
-                type="button"
-                onClick={() => setShowPinUnlock((s) => !s)}
-                disabled={busy || !vaultEnabled}
-              >
-                {showPinUnlock ? "HIDE PIN" : "USE PIN"}
-              </button>
-
-              <button
-                className="pip-link"
-                type="button"
-                onClick={() => setShowPinSet((s) => !s)}
-                disabled={busy || !vaultEnabled}
-              >
-                {showPinSet ? "CANCEL SET PIN" : "SET PIN"}
-              </button>
-
-              <button className="pip-link" type="button" onClick={lockNow} disabled={busy}>
-                LOCK
-              </button>
-
-              <button className="pip-link" type="button" onClick={refreshStatus} disabled={busy}>
-                REFRESH
-              </button>
-            </div>
-
-            {showPinSet && (
-              <div style={{ marginTop: 14 }}>
-                <PinPad onSubmit={setPin} disabled={busy} title="SET NEW PIN (numbers only)" />
-                <div className="pip-muted pip-footnote">
-                  After setting PIN, hit REFRESH then USE PIN to unlock.
-                </div>
-              </div>
-            )}
-
-            {showPinUnlock && (
-              <div style={{ marginTop: 14 }}>
-                <PinPad onSubmit={unlockWithPin} disabled={busy} title="ENTER PIN TO UNLOCK" />
-              </div>
-            )}
-
-            <div className="pip-muted pip-footnote" style={{ marginTop: 12 }}>
-              Keys are stored encrypted on the server. Do NOT enable withdrawal permissions. Withdrawals remain only
-              inside the exchange app.
-            </div>
           </div>
 
-          <div className="pip-panel" style={{ marginTop: 14 }}>
-            <div className="pip-heading">KEY VAULT</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button style={btn(onSetPin, !status.enabled)} onClick={onSetPin} disabled={!status.enabled}>
+              SET PIN
+            </button>
+            <button style={btn(onUnlock, !status.enabled)} onClick={onUnlock} disabled={!status.enabled}>
+              UNLOCK (PIN)
+            </button>
+            <button style={btn(onLock, !status.enabled)} onClick={onLock} disabled={!status.enabled}>
+              LOCK
+            </button>
+          </div>
 
-            {!vaultEnabled ? (
-              <div className="pip-muted">
-                Vault is disabled on backend. Your Render `/vault/status` must show `"enabled": true`.
+          <div style={{ opacity: 0.8, fontSize: 12, lineHeight: 1.5 }}>
+            Keys are stored encrypted on the server. Do NOT enable withdrawal permissions on exchange API keys.
+          </div>
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 2 }}>KEY VAULT</div>
+          <div style={{ opacity: 0.75, fontSize: 12 }}>
+            {status.unlocked ? "Unlocked — you can add/manage keys." : "Locked — unlock to view keys."}
+          </div>
+        </div>
+
+        {!status.unlocked ? (
+          <div style={{ opacity: 0.85, lineHeight: 1.6 }}>
+            Unlock the safe to add/manage keys.
+            <div style={{ marginTop: 8, opacity: 0.8, fontSize: 12 }}>
+              Tip: If you *know* Render vault is enabled, but this UI says disabled, your proxy route is not reachable.
+              The URL that must work is: <b>{API_BASE}/vault/status</b>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>Exchange</div>
+                <input style={input} value={newExchange} onChange={(e) => setNewExchange(e.target.value)} placeholder="BINANCE" />
               </div>
-            ) : locked ? (
-              <div className="pip-muted">Unlock the safe to add/manage keys.</div>
-            ) : (
-              <>
-                <div className="pip-row" style={{ borderBottom: "none" }}>
-                  <div className="pip-k">EXCHANGE</div>
-                  <select
-                    value={exchange}
-                    onChange={(e) => setExchange(e.target.value)}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  >
-                    <option value="BINANCE">BINANCE</option>
-                    <option value="BYBIT">BYBIT</option>
-                    <option value="KRAKEN">KRAKEN</option>
-                  </select>
-                </div>
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>Passphrase (optional)</div>
+                <input style={input} value={newPassphrase} onChange={(e) => setNewPassphrase(e.target.value)} placeholder="optional" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>API Key</div>
+                <input style={input} value={newApiKey} onChange={(e) => setNewApiKey(e.target.value)} placeholder="api key" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>API Secret</div>
+                <input style={input} value={newApiSecret} onChange={(e) => setNewApiSecret(e.target.value)} placeholder="api secret" />
+              </div>
+            </div>
 
-                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-                  <input
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="API KEY"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="API SECRET"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
-                  <input
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="PASSPHRASE (optional)"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(120,255,170,0.25)",
-                      background: "rgba(0,0,0,0.35)",
-                      color: "rgba(180,255,210,0.95)",
-                      outline: "none",
-                    }}
-                  />
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+              <button style={btn(onAddKey, keysLoading)} onClick={onAddKey} disabled={keysLoading}>
+                ADD KEY
+              </button>
+              <button style={btn(loadKeys, keysLoading)} onClick={loadKeys} disabled={keysLoading}>
+                {keysLoading ? "LOADING…" : "RELOAD KEYS"}
+              </button>
+            </div>
 
-                  <button className="pip-link" type="button" onClick={saveKeys} disabled={busy}>
-                    SAVE (ENCRYPT)
-                  </button>
-                </div>
-
-                <div className="pip-heading" style={{ marginTop: 18 }}>
-                  STORED KEYS (MASKED)
-                </div>
-
-                {keysList.length === 0 ? (
-                  <div className="pip-muted">No keys stored yet.</div>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {keysList.map((k) => (
-                      <div
-                        key={k.id}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid rgba(120,255,170,0.18)",
-                          background: "rgba(0,0,0,0.25)",
-                          padding: 10,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div style={{ fontWeight: 800, letterSpacing: 2 }} className="wrap-anywhere">
-                            {k.exchange} • {k.key_hint}
+            <div style={{ borderTop: "1px dashed rgba(119,255,154,0.2)", paddingTop: 12 }}>
+              {keys.length === 0 ? (
+                <div style={{ opacity: 0.8 }}>No keys stored yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {keys.map((k) => (
+                    <div key={k.id} style={{ ...card, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ fontWeight: 900, letterSpacing: 1 }}>{k.exchange || "UNKNOWN"}</div>
+                          <div style={{ opacity: 0.8, fontSize: 12 }}>ID: {k.id} • Created: {k.created || "—"}</div>
+                          <div style={{ marginTop: 6, fontSize: 13 }}>
+                            API Key: <span style={{ opacity: 0.85 }}>{k.api_key_masked || "****"}</span>
                           </div>
-                          <div className="pip-muted wrap-anywhere" style={{ fontSize: 12 }}>
-                            {k.created_time_utc || ""}
-                          </div>
+                          {k.error && <div style={{ color: "#ff9a9a", fontWeight: 800, marginTop: 6 }}>Error: {k.error}</div>}
                         </div>
-
-                        <div className="pip-links" style={{ marginTop: 8 }}>
-                          <button className="pip-link" type="button" onClick={() => testKey(k.id)} disabled={busy}>
-                            TEST
-                          </button>
-                          <button className="pip-link" type="button" onClick={() => deleteKey(k.id)} disabled={busy}>
+                        <div style={{ display: "flex", alignItems: "center" }}>
+                          <button style={btn(() => onDeleteKey(k.id), false)} onClick={() => onDeleteKey(k.id)}>
                             DELETE
                           </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
