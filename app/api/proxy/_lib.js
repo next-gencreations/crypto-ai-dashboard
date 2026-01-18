@@ -2,94 +2,85 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export function upstreamBase() {
-  const base = (
-    process.env.API_URL ||
-    process.env.UPSTREAM_API_URL ||
-    process.env.RENDER_API_URL ||
-    process.env.UPSTREAM_URL ||
-    ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
-
+function upstreamBase() {
+  const base =
+    (process.env.UPSTREAM_API_URL ||
+      process.env.RENDER_API_URL ||
+      process.env.UPSTREAM_URL ||
+      "")
+      .trim()
+      .replace(/\/+$/, "");
   return base;
 }
 
-export function joinUrl(base, path) {
+function joinUrl(base, path) {
   const p = String(path || "").replace(/^\/+/, "");
   return `${base}/${p}`;
 }
 
-async function requestUpstream(path, { method = "GET", body, headers } = {}) {
+async function forward(req, ctx) {
   const base = upstreamBase();
-
   if (!base) {
-    return {
-      ok: false,
-      error: "missing_upstream_env",
-      hint:
-        "Set API_URL (recommended) or UPSTREAM_API_URL on Vercel to your Render base, e.g. https://xxxx.onrender.com",
-    };
+    return new Response(
+      JSON.stringify({ error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel." }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      }
+    );
   }
 
+  // Support both catch-all routes and "path passed in ctx"
+  const pathParts = ctx?.params?.path || [];
+  const path = Array.isArray(pathParts) ? pathParts.join("/") : String(pathParts || "");
   const url = joinUrl(base, path);
 
-  const h = new Headers(headers || {});
-  if (!h.get("accept")) h.set("accept", "application/json");
+  const headers = new Headers(req.headers);
+  headers.delete("host");
 
-  const init = { method, headers: h, cache: "no-store" };
+  if (!headers.get("accept")) headers.set("accept", "application/json");
 
-  if (method !== "GET" && method !== "HEAD" && body !== undefined) {
-    // if body is already a string/Buffer/etc keep it, otherwise JSON encode
-    if (
-      typeof body === "string" ||
-      body instanceof ArrayBuffer ||
-      ArrayBuffer.isView(body)
-    ) {
-      init.body = body;
-    } else {
-      h.set("content-type", "application/json");
-      init.body = JSON.stringify(body);
-    }
-  }
-
-  const res = await fetch(url, init);
-  const ct = res.headers.get("content-type") || "";
-
-  let data;
-  try {
-    data = ct.includes("application/json") ? await res.json() : await res.text();
-  } catch (e) {
-    data = { parse_error: String(e?.message || e) };
-  }
-
-  // If upstream returns an object already, keep it.
-  // If it returns text, wrap it so NextResponse.json doesn't break.
-  if (typeof data === "string") {
-    return { ok: res.ok, status: res.status, text: data };
-  }
-
-  // Merge a few helpful bits without overwriting upstream keys
-  return {
-    ok: res.ok,
-    status: res.status,
-    ...data,
+  const init = {
+    method: req.method,
+    headers,
+    cache: "no-store",
   };
+
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const buf = await req.arrayBuffer();
+    init.body = buf;
+  }
+
+  const upstreamRes = await fetch(url, init);
+
+  const resHeaders = new Headers(upstreamRes.headers);
+  resHeaders.set("Cache-Control", "no-store");
+
+  const body = await upstreamRes.arrayBuffer();
+
+  return new Response(body, {
+    status: upstreamRes.status,
+    headers: resHeaders,
+  });
 }
 
-export async function proxyGet(path, extraHeaders) {
-  return requestUpstream(path, { method: "GET", headers: extraHeaders });
+// helpers for single-path routes (like /api/proxy/settings -> /settings)
+export async function proxyGet(req, upstreamPath) {
+  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
 }
 
-export async function proxyPost(path, body, extraHeaders) {
-  return requestUpstream(path, { method: "POST", body, headers: extraHeaders });
+export async function proxyPost(req, upstreamPath) {
+  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
 }
 
-export async function proxyPut(path, body, extraHeaders) {
-  return requestUpstream(path, { method: "PUT", body, headers: extraHeaders });
+export async function proxyPut(req, upstreamPath) {
+  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
 }
 
-export async function proxyDelete(path, extraHeaders) {
-  return requestUpstream(path, { method: "DELETE", headers: extraHeaders });
+export async function proxyDelete(req, upstreamPath) {
+  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
+}
+
+export async function proxyAny(req, ctx) {
+  return forward(req, ctx);
 }
