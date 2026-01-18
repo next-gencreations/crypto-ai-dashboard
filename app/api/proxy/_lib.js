@@ -1,34 +1,47 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+const UPSTREAM = process.env.UPSTREAM_API;
 
-export function upstreamBase() {
-  return (
-    process.env.UPSTREAM_API_URL ||
-    process.env.RENDER_API_URL ||
-    process.env.API_URL ||
-    ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
+function buildUrl(path) {
+  if (!UPSTREAM) throw new Error("UPSTREAM_API not set");
+  return `${UPSTREAM}${path}`;
 }
 
 export async function proxyGet(path) {
-  const base = upstreamBase();
-  if (!base) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing upstream env on Vercel." }), {
+  const res = await fetch(buildUrl(path), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  try {
+    return new Response(text, {
+      status: res.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    return new Response(JSON.stringify({ ok: false, raw: text }), {
       status: 500,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
+}
 
-  const url = `${base}/${String(path).replace(/^\/+/, "")}`;
-  const r = await fetch(url, { cache: "no-store" });
-
-  const ct = r.headers.get("content-type") || "";
-  const body = ct.includes("application/json") ? await r.json() : await r.text();
-
-  return new Response(JSON.stringify(body), {
-    status: r.status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+export async function proxyPost(path, body) {
+  const res = await fetch(buildUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
   });
+
+  const text = await res.text();
+  try {
+    return new Response(text, {
+      status: res.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    return new Response(JSON.stringify({ ok: false, raw: text }), {
+      status: 500,
+    });
+  }
 }
