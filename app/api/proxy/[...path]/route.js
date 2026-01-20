@@ -1,73 +1,116 @@
-import { NextResponse } from "next/server";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const API_BASE = (process.env.API_URL || "https://crypto-ai-api-1-7cte.onrender.com").replace(/\/$/, "");
+/**
+ * Catch-all proxy:
+ * /api/proxy/<anything>  ->  ${API_URL}/<anything>
+ *
+ * It forwards:
+ *  - method
+ *  - query string
+ *  - body (json/text)
+ *  - headers (except host)
+ *
+ * It also adds CORS headers so browser calls work.
+ */
 
-function buildTargetUrl(req, pathParts) {
-  const url = new URL(req.url);
-  const qs = url.search ? url.search : "";
-  const path = (pathParts || []).join("/");
-  return `${API_BASE}/${path}${qs}`;
+function getBaseUrl() {
+  // Prefer server env vars (set these in Vercel -> Project -> Settings -> Environment Variables)
+  const candidates = [
+    process.env.API_URL,
+    process.env.NEXT_PUBLIC_API_URL,
+    process.env.CRYPTO_AI_API_URL,
+    process.env.NEXT_PUBLIC_CRYPTO_AI_API_URL,
+  ].filter(Boolean);
+
+  const base = (candidates[0] || "https://crypto-ai-api-1-7cte.onrender.com").trim();
+  return base.replace(/\/+$/, "");
 }
 
-async function proxy(req, ctx) {
-  const pathParts = ctx?.params?.path || [];
-  const target = buildTargetUrl(req, pathParts);
+function withCors(res) {
+  res.headers.set("Access-Control-Allow-Origin", "*");
+  res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type, X-Vault-Token, Authorization");
+  return res;
+}
 
-  // Forward token if present
-  const token = req.headers.get("x-vault-token") || req.headers.get("X-Vault-Token") || "";
+async function handler(req, ctx) {
+  const base = getBaseUrl();
+  const pathParts = (ctx?.params?.path || []).map(encodeURIComponent).join("/");
+  const url = new URL(req.url);
 
-  const headers = new Headers();
-  headers.set("Accept", "application/json");
-  if (token) headers.set("X-Vault-Token", token);
+  // Build target URL (preserve query string)
+  const target = `${base}/${pathParts}${url.search || ""}`;
 
-  // Forward content-type only when body exists
+  // Copy headers (remove host + content-length)
+  const headers = new Headers(req.headers);
+  headers.delete("host");
+  headers.delete("content-length");
+
+  // Body handling: only send body for non-GET/HEAD
   const method = req.method.toUpperCase();
   let body = undefined;
 
-  if (method !== "GET" && method !== "HEAD") {
-    const ct = req.headers.get("content-type") || "";
-    if (ct.includes("application/json")) {
-      const json = await req.json().catch(() => ({}));
-      headers.set("Content-Type", "application/json");
-      body = JSON.stringify(json || {});
-    } else {
-      // fallback: forward raw body
-      body = await req.text().catch(() => "");
-    }
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    // Read raw body (works for JSON or text)
+    const buf = await req.arrayBuffer();
+    body = buf.byteLength ? Buffer.from(buf) : undefined;
   }
 
-  const upstream = await fetch(target, {
-    method,
-    headers,
-    body,
-    cache: "no-store",
+  // OPTIONS preflight
+  if (method === "OPTIONS") {
+    return withCors(new Response(null, { status: 204 }));
+  }
+
+  let upstreamRes;
+  try {
+    upstreamRes = await fetch(target, {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+    });
+  } catch (err) {
+    const msg = String(err?.message || err);
+    return withCors(
+      new Response(JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: msg }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+  }
+
+  // Pass through response body + status
+  const respBody = await upstreamRes.arrayBuffer();
+  const outHeaders = new Headers(upstreamRes.headers);
+
+  // Make sure browser can read it
+  outHeaders.set("Cache-Control", "no-store");
+  outHeaders.delete("content-encoding"); // avoid weird gzip issues sometimes
+
+  const res = new Response(respBody, {
+    status: upstreamRes.status,
+    headers: outHeaders,
   });
 
-  const text = await upstream.text();
-
-  // CORS + passthrough
-  const resp = new NextResponse(text, { status: upstream.status });
-  resp.headers.set("Content-Type", upstream.headers.get("content-type") || "application/json");
-  resp.headers.set("Access-Control-Allow-Origin", "*");
-  resp.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  resp.headers.set("Access-Control-Allow-Headers", "Content-Type, X-Vault-Token");
-
-  return resp;
+  return withCors(res);
 }
 
 export async function GET(req, ctx) {
-  return proxy(req, ctx);
+  return handler(req, ctx);
 }
 export async function POST(req, ctx) {
-  return proxy(req, ctx);
+  return handler(req, ctx);
 }
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Vault-Token",
-    },
-  });
+export async function PUT(req, ctx) {
+  return handler(req, ctx);
+}
+export async function PATCH(req, ctx) {
+  return handler(req, ctx);
+}
+export async function DELETE(req, ctx) {
+  return handler(req, ctx);
+}
+export async function OPTIONS(req, ctx) {
+  return handler(req, ctx);
 }
