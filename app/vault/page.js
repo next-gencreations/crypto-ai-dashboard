@@ -74,6 +74,20 @@ export default function VaultPage() {
   const [msg, setMsg] = useState("");
   const [last, setLast] = useState("");
 
+  // Your backend (crypto-ai-api) currently supports:
+  // GET  /vault/status
+  // POST /vault/pin/set      { pin }
+  // POST /vault/unlock       { pin }   -> returns { token, ttl_sec, ... }
+  // POST /vault/lock         -> returns { ok, ... }
+  //
+  // So the dashboard should call these through the proxy:
+  // /api/proxy/vault/status
+  // /api/proxy/vault/pin/set
+  // /api/proxy/vault/unlock
+  // /api/proxy/vault/lock
+  //
+  // Biometrics/webAuthn is NOT implemented on the backend yet, so we disable it cleanly.
+
   const doorLabel = useMemo(() => {
     if (!vaultEnabled) return "DISABLED";
     if (unlocked) return "UNLOCKED";
@@ -84,7 +98,7 @@ export default function VaultPage() {
   function normalizeVaultStatus(out) {
     const o = out && typeof out === "object" ? out : {};
 
-    // Accept both /vault/status and /health style keys
+    // Accept both /vault/status and any older /health style keys
     const enabled =
       typeof o.enabled === "boolean"
         ? o.enabled
@@ -114,22 +128,14 @@ export default function VaultPage() {
   async function refreshStatus() {
     setBusy(true);
     try {
-      // Primary: vault/status (preferred)
-      let out = await getJson("/api/proxy/vault/status", "");
-      let norm = normalizeVaultStatus(out);
-
-      // If it looks like we accidentally got a /health style payload (or missing expected keys),
-      // still honor it instead of showing DISABLED.
-      if (!("enabled" in (out || {})) && ("vault_enabled" in (out || {}))) {
-        norm = normalizeVaultStatus(out);
-      }
+      const out = await getJson("/api/proxy/vault/status", "");
+      const norm = normalizeVaultStatus(out);
 
       setVaultEnabled(!!norm.enabled);
       setPinSet(!!norm.pin_set);
       setUnlocked(!!norm.unlocked);
       setTtlSec(Number(norm.ttl_sec || 0));
 
-      // Friendly message
       if (!norm.enabled) {
         setMsg(
           "Vault disabled on backend. Check Render env: VAULT_MASTER_KEY and restart service. | endpoint: /api/proxy/vault/status"
@@ -137,7 +143,7 @@ export default function VaultPage() {
       } else if (!norm.pin_set) {
         setMsg("Vault enabled. PIN not set yet. Use SET PIN.");
       } else if (!norm.unlocked) {
-        setMsg("Vault enabled. Locked. Unlock with PIN or Biometrics (if supported).");
+        setMsg("Vault enabled. Locked. Unlock with PIN.");
       } else {
         setMsg(`Vault unlocked. TTL: ${fmtSecs(norm.ttl_sec)}.`);
       }
@@ -159,7 +165,13 @@ export default function VaultPage() {
     setBusy(true);
     try {
       const out = await postJson("/api/proxy/vault/unlock", token, { pin });
-      setToken(out?.token || token);
+
+      // backend returns a token when unlocked
+      if (out?.token) setToken(out.token);
+
+      // if backend returns ttl_sec, update immediately (refresh will also do it)
+      if (out?.ttl_sec != null) setTtlSec(Number(out.ttl_sec || 0));
+
       setMsg(out?.message || "Unlocked.");
       await refreshStatus();
     } catch (e) {
@@ -172,7 +184,8 @@ export default function VaultPage() {
   async function setPinOnBackend() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/set-pin", token, { pin: newPin });
+      // ✅ FIX: correct endpoint for your API is /vault/pin/set
+      const out = await postJson("/api/proxy/vault/pin/set", token, { pin: newPin });
       setMsg(out?.message || "PIN set.");
       setNewPin("");
       await refreshStatus();
@@ -197,17 +210,8 @@ export default function VaultPage() {
   }
 
   async function unlockWithPasskey() {
-    // optional: depends on your implementation on backend
-    setBusy(true);
-    try {
-      const out = await postJson("/api/proxy/vault/webauthn/begin", token, {});
-      setMsg(out?.message || "Biometrics not configured on this device.");
-      await refreshStatus();
-    } catch (e) {
-      setMsg(String(e?.message || e));
-    } finally {
-      setBusy(false);
-    }
+    // ❌ Backend does not support WebAuthn yet, so we don’t call a dead endpoint.
+    setMsg("Biometrics not available yet (backend WebAuthn not implemented). Use PIN.");
   }
 
   return (
@@ -254,7 +258,7 @@ export default function VaultPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button className="btn" disabled={busy} onClick={unlockWithPasskey}>
+            <button className="btn" disabled={true} onClick={unlockWithPasskey} title="Not implemented yet">
               UNLOCK (BIOMETRICS)
             </button>
             <button className="btn" disabled={busy || !pin} onClick={usePinUnlock}>
