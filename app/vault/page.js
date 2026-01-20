@@ -2,16 +2,16 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-/**
- * Vault UI notes:
- * - Uses your Next.js proxy routes: /api/proxy/...
- * - FIXED paths (these were causing HTTP 404):
- *    POST /api/proxy/vault/pin/set
- *    POST /api/proxy/vault/pin/unlock
- *    POST /api/proxy/vault/lock
- * - Status:
- *    GET  /api/proxy/vault/status
- */
+async function readJson(res) {
+  const txt = await res.text();
+  let data = null;
+  try {
+    data = txt ? JSON.parse(txt) : null;
+  } catch {
+    data = { _raw: txt };
+  }
+  return { ok: res.ok, status: res.status, data: data || {} };
+}
 
 async function getJson(url, token) {
   const res = await fetch(url, {
@@ -20,20 +20,13 @@ async function getJson(url, token) {
     cache: "no-store",
   });
 
-  const txt = await res.text();
-  let data = null;
-
-  try {
-    data = txt ? JSON.parse(txt) : null;
-  } catch {
-    data = { _raw: txt };
-  }
-
-  if (!res.ok) {
-    const msg = (data && (data.error || data.detail || data.message)) || `HTTP ${res.status}`;
+  const out = await readJson(res);
+  if (!out.ok) {
+    const msg =
+      (out.data && (out.data.error || out.data.detail || out.data.message)) || `HTTP ${out.status}`;
     throw new Error(msg);
   }
-  return data || {};
+  return out.data || {};
 }
 
 async function postJson(url, token, body) {
@@ -47,20 +40,16 @@ async function postJson(url, token, body) {
     cache: "no-store",
   });
 
-  const txt = await res.text();
-  let data = null;
-
-  try {
-    data = txt ? JSON.parse(txt) : null;
-  } catch {
-    data = { _raw: txt };
+  const out = await readJson(res);
+  if (!out.ok) {
+    const msg =
+      (out.data && (out.data.error || out.data.detail || out.data.message)) || `HTTP ${out.status}`;
+    const err = new Error(msg);
+    err.status = out.status;
+    err.payload = out.data;
+    throw err;
   }
-
-  if (!res.ok) {
-    const msg = (data && (data.error || data.detail || data.message)) || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data || {};
+  return out.data || {};
 }
 
 function fmtSecs(n) {
@@ -69,6 +58,57 @@ function fmtSecs(n) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}m ${r}s`;
+}
+
+function normalizeVaultStatus(out) {
+  const o = out && typeof out === "object" ? out : {};
+  const enabled =
+    typeof o.enabled === "boolean"
+      ? o.enabled
+      : typeof o.vault_enabled === "boolean"
+      ? o.vault_enabled
+      : false;
+
+  const unlockedVal =
+    typeof o.unlocked === "boolean"
+      ? o.unlocked
+      : typeof o.vault_unlocked === "boolean"
+      ? o.vault_unlocked
+      : false;
+
+  const pinSetVal =
+    typeof o.pin_set === "boolean"
+      ? o.pin_set
+      : typeof o.pinSet === "boolean"
+      ? o.pinSet
+      : false;
+
+  // some backends might return ttl_sec, ttl, expires, etc
+  const ttl = Number(o.ttl_sec ?? o.ttl ?? o.expires ?? 0) || 0;
+
+  return { enabled, unlocked: unlockedVal, pin_set: pinSetVal, ttl_sec: ttl, raw: o };
+}
+
+/**
+ * Try multiple backend endpoints (through /api/proxy) until one works.
+ * This avoids guessing exact backend route names.
+ */
+async function postWithFallback(paths, token, body) {
+  let lastErr = null;
+  for (const p of paths) {
+    try {
+      const out = await postJson(p, token, body);
+      return { out, used: p };
+    } catch (e) {
+      lastErr = e;
+      // If it's 404, try next candidate
+      if (Number(e?.status) === 404) continue;
+      // For other errors (401/400/500), stop and show it.
+      throw e;
+    }
+  }
+  // All candidates 404
+  throw lastErr || new Error("No endpoint matched");
 }
 
 export default function VaultPage() {
@@ -84,6 +124,7 @@ export default function VaultPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [last, setLast] = useState("");
+  const [lastEndpoint, setLastEndpoint] = useState("");
 
   const doorLabel = useMemo(() => {
     if (!vaultEnabled) return "DISABLED";
@@ -92,40 +133,10 @@ export default function VaultPage() {
     return "PIN NOT SET";
   }, [vaultEnabled, unlocked, pinSet]);
 
-  function normalizeVaultStatus(out) {
-    const o = out && typeof out === "object" ? out : {};
-
-    // Accept both /vault/status and /health-ish keys
-    const enabled =
-      typeof o.enabled === "boolean"
-        ? o.enabled
-        : typeof o.vault_enabled === "boolean"
-        ? o.vault_enabled
-        : false;
-
-    const unlockedVal =
-      typeof o.unlocked === "boolean"
-        ? o.unlocked
-        : typeof o.vault_unlocked === "boolean"
-        ? o.vault_unlocked
-        : false;
-
-    const pinSetVal =
-      typeof o.pin_set === "boolean"
-        ? o.pin_set
-        : typeof o.pinSet === "boolean"
-        ? o.pinSet
-        : false;
-
-    const ttl = Number(o.ttl_sec ?? o.ttl ?? 0) || 0;
-
-    return { enabled, unlocked: unlockedVal, pin_set: pinSetVal, ttl_sec: ttl, raw: o };
-  }
-
   async function refreshStatus() {
     setBusy(true);
     try {
-      const out = await getJson("/api/proxy/vault/status", "");
+      const out = await getJson("/api/proxy/vault/status", token || "");
       const norm = normalizeVaultStatus(out);
 
       setVaultEnabled(!!norm.enabled);
@@ -133,15 +144,12 @@ export default function VaultPage() {
       setUnlocked(!!norm.unlocked);
       setTtlSec(Number(norm.ttl_sec || 0));
 
-      // Friendly message
       if (!norm.enabled) {
-        setMsg(
-          "Vault disabled on backend. Check Render env: VAULT_MASTER_KEY and restart service. | endpoint: /api/proxy/vault/status"
-        );
+        setMsg("Vault disabled on backend. Set VAULT_MASTER_KEY on Render and redeploy.");
       } else if (!norm.pin_set) {
-        setMsg("Vault enabled. PIN not set yet. Use SET PIN.");
+        setMsg("pin_not_set");
       } else if (!norm.unlocked) {
-        setMsg("Vault enabled. Locked. Unlock with PIN (biometrics optional).");
+        setMsg("Vault locked. Use PIN to unlock.");
       } else {
         setMsg(`Vault unlocked. TTL: ${fmtSecs(norm.ttl_sec)}.`);
       }
@@ -159,12 +167,21 @@ export default function VaultPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ FIXED: correct unlock endpoint
   async function usePinUnlock() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/pin/unlock", token, { pin });
-      setToken(out?.token || token);
+      const candidates = [
+        "/api/proxy/vault/unlock",
+        "/api/proxy/vault/pin/unlock",
+        "/api/proxy/vault/unlock/pin",
+        "/api/proxy/vault/pin_unlock",
+        "/api/proxy/vault/pin-unlock",
+      ];
+
+      const { out, used } = await postWithFallback(candidates, token, { pin });
+      setLastEndpoint(used);
+
+      if (out?.token) setToken(out.token);
       setMsg(out?.message || "Unlocked.");
       await refreshStatus();
     } catch (e) {
@@ -174,12 +191,21 @@ export default function VaultPage() {
     }
   }
 
-  // ✅ FIXED: correct set-pin endpoint
   async function setPinOnBackend() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/pin/set", token, { pin: newPin });
-      setMsg(out?.message || "PIN set.");
+      const candidates = [
+        "/api/proxy/vault/set-pin",
+        "/api/proxy/vault/pin/set",
+        "/api/proxy/vault/pin",
+        "/api/proxy/vault/set_pin",
+        "/api/proxy/vault/pin-set",
+      ];
+
+      const { out, used } = await postWithFallback(candidates, token, { pin: newPin });
+      setLastEndpoint(used);
+
+      setMsg(out?.message || `PIN set (via ${used}).`);
       setNewPin("");
       await refreshStatus();
     } catch (e) {
@@ -189,11 +215,19 @@ export default function VaultPage() {
     }
   }
 
-  // ✅ Confirmed: lock endpoint
   async function lockVault() {
     setBusy(true);
     try {
-      const out = await postJson("/api/proxy/vault/lock", token, {});
+      const candidates = [
+        "/api/proxy/vault/lock",
+        "/api/proxy/vault/lockdown",
+        "/api/proxy/vault/pin/lock",
+        "/api/proxy/vault/close",
+      ];
+
+      const { out, used } = await postWithFallback(candidates, token, {});
+      setLastEndpoint(used);
+
       setMsg(out?.message || "Locked.");
       await refreshStatus();
     } catch (e) {
@@ -203,12 +237,17 @@ export default function VaultPage() {
     }
   }
 
-  // Optional: if your backend has webauthn endpoints, wire them here
   async function unlockWithPasskey() {
     setBusy(true);
     try {
-      // If you DON'T have this route yet, it will error gracefully.
-      const out = await postJson("/api/proxy/vault/webauthn/begin", token, {});
+      const candidates = [
+        "/api/proxy/vault/webauthn/begin",
+        "/api/proxy/vault/passkey/begin",
+        "/api/proxy/vault/biometric",
+      ];
+      const { out, used } = await postWithFallback(candidates, token, {});
+      setLastEndpoint(used);
+
       setMsg(out?.message || "Biometrics not configured on this device.");
       await refreshStatus();
     } catch (e) {
@@ -259,6 +298,7 @@ export default function VaultPage() {
             }}
           >
             {msg || "—"}
+            {lastEndpoint ? `\n(last endpoint used: ${lastEndpoint})` : ""}
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
