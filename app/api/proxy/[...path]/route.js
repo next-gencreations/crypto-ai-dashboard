@@ -1,97 +1,86 @@
 // app/api/proxy/[...path]/route.js
+import { NextResponse } from "next/server";
+import { upstreamBase, joinUrl } from "../_lib";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function upstreamBase() {
-  const base =
-    (process.env.UPSTREAM_API_URL ||
-      process.env.RENDER_API_URL ||
-      process.env.UPSTREAM_URL ||
-      "")
-      .trim()
-      .replace(/\/+$/, "");
-  return base;
-}
-
-function joinUrl(base, path) {
-  const p = String(path || "").replace(/^\/+/, "");
-  return `${base}/${p}`;
-}
-
-async function forward(req, ctx) {
+async function forward(req, params) {
   const base = upstreamBase();
+
   if (!base) {
-    return new Response(
-      JSON.stringify({ error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel." }),
+    return NextResponse.json(
       {
-        status: 500,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      }
+        ok: false,
+        error: "missing_upstream_env",
+        hint:
+          "Set API_URL (recommended) or UPSTREAM_API_URL on Vercel to your Render base, e.g. https://xxxx.onrender.com",
+      },
+      { status: 500 }
     );
   }
 
-  const pathParts = ctx?.params?.path || [];
-  const path = Array.isArray(pathParts) ? pathParts.join("/") : String(pathParts || "");
-  const url = joinUrl(base, path);
+  const { path = [] } = params || {};
+  const url = new URL(req.url);
 
-  // Copy request headers (keep X-Vault-Token, etc.)
+  // Build upstream path + querystring
+  const upstreamPath = `/${path.join("/")}${url.search || ""}`;
+  const upstreamUrl = joinUrl(base, upstreamPath);
+
+  const method = req.method.toUpperCase();
+
+  // Copy headers but drop host-related ones
   const headers = new Headers(req.headers);
   headers.delete("host");
+  headers.set("accept", "application/json");
 
-  // Avoid upstream gzip issues by preventing compression from upstream
-  // (browser-to-vercel can still compress; this is upstream fetch only)
-  headers.set("accept-encoding", "identity");
-
-  if (!headers.get("accept")) headers.set("accept", "application/json");
-
-  const init = {
-    method: req.method,
-    headers,
-    cache: "no-store",
-    redirect: "follow",
-  };
-
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    init.body = await req.arrayBuffer();
+  // Read body only when needed
+  let body;
+  if (method !== "GET" && method !== "HEAD") {
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      body = JSON.stringify(await req.json().catch(() => ({})));
+      headers.set("content-type", "application/json");
+    } else {
+      body = await req.text().catch(() => "");
+    }
   }
 
-  const upstreamRes = await fetch(url, init);
-
-  // Clone headers, but remove headers that commonly break when proxying
-  const resHeaders = new Headers(upstreamRes.headers);
-  resHeaders.set("Cache-Control", "no-store");
-
-  // These can cause "Failed to fetch" if the body was decompressed/repacked
-  resHeaders.delete("content-encoding");
-  resHeaders.delete("content-length");
-  resHeaders.delete("transfer-encoding");
-
-  // Optional: avoid caching/proxy weirdness
-  resHeaders.delete("connection");
-
-  const body = await upstreamRes.arrayBuffer();
-
-  return new Response(body, {
-    status: upstreamRes.status,
-    headers: resHeaders,
+  const res = await fetch(upstreamUrl, {
+    method,
+    headers,
+    body,
+    cache: "no-store",
   });
+
+  const ct = res.headers.get("content-type") || "";
+  const payload = ct.includes("application/json")
+    ? await res.json().catch(() => ({}))
+    : await res.text().catch(() => "");
+
+  // Always respond JSON to the frontend
+  if (typeof payload === "string") {
+    return NextResponse.json(
+      { ok: res.ok, status: res.status, text: payload },
+      { status: res.ok ? 200 : res.status }
+    );
+  }
+
+  return NextResponse.json(
+    { ok: res.ok, status: res.status, ...payload },
+    { status: res.ok ? 200 : res.status }
+  );
 }
 
-export async function GET(req, ctx) {
-  return forward(req, ctx);
+export async function GET(req, { params }) {
+  return forward(req, params);
 }
-export async function POST(req, ctx) {
-  return forward(req, ctx);
+export async function POST(req, { params }) {
+  return forward(req, params);
 }
-export async function PUT(req, ctx) {
-  return forward(req, ctx);
+export async function PUT(req, { params }) {
+  return forward(req, params);
 }
-export async function PATCH(req, ctx) {
-  return forward(req, ctx);
-}
-export async function DELETE(req, ctx) {
-  return forward(req, ctx);
-}
-export async function OPTIONS(req, ctx) {
-  return forward(req, ctx);
+export async function DELETE(req, { params }) {
+  return forward(req, params);
 }
