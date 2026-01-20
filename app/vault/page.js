@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
+const API = "/api/proxy"; // your Next proxy (forwards to Render backend)
+
 async function readJson(res) {
   const txt = await res.text();
   let data = null;
@@ -10,46 +12,47 @@ async function readJson(res) {
   } catch {
     data = { _raw: txt };
   }
-  return { ok: res.ok, status: res.status, data: data || {} };
+  return data || {};
 }
 
-async function getJson(url, token) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: token ? { "X-Vault-Token": token } : {},
-    cache: "no-store",
-  });
+function friendlyVaultError(code) {
+  if (!code) return "";
+  const c = String(code);
 
-  const out = await readJson(res);
-  if (!out.ok) {
-    const msg =
-      (out.data && (out.data.error || out.data.detail || out.data.message)) || `HTTP ${out.status}`;
+  const map = {
+    vault_not_configured: "Vault is not configured on the backend (missing VAULT_MASTER_KEY).",
+    pin_not_set: "PIN not set yet. Use SET PIN first.",
+    bad_pin: "Incorrect PIN.",
+    vault_locked: "Vault is locked. Unlock it first before changing the PIN.",
+    pin_must_be_4_to_12_digits: "PIN must be 4–12 digits.",
+  };
+
+  return map[c] || c;
+}
+
+async function getJson(url) {
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  const data = await readJson(res);
+  if (!res.ok) {
+    const msg = data?.error || data?.detail || data?.message || `HTTP ${res.status}`;
     throw new Error(msg);
   }
-  return out.data || {};
+  return data || {};
 }
 
-async function postJson(url, token, body) {
+async function postJson(url, body) {
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { "X-Vault-Token": token } : {}),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
     cache: "no-store",
   });
-
-  const out = await readJson(res);
-  if (!out.ok) {
-    const msg =
-      (out.data && (out.data.error || out.data.detail || out.data.message)) || `HTTP ${out.status}`;
-    const err = new Error(msg);
-    err.status = out.status;
-    err.payload = out.data;
-    throw err;
+  const data = await readJson(res);
+  if (!res.ok) {
+    const msg = data?.error || data?.detail || data?.message || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
-  return out.data || {};
+  return data || {};
 }
 
 function fmtSecs(n) {
@@ -60,71 +63,18 @@ function fmtSecs(n) {
   return `${m}m ${r}s`;
 }
 
-function normalizeVaultStatus(out) {
-  const o = out && typeof out === "object" ? out : {};
-  const enabled =
-    typeof o.enabled === "boolean"
-      ? o.enabled
-      : typeof o.vault_enabled === "boolean"
-      ? o.vault_enabled
-      : false;
-
-  const unlockedVal =
-    typeof o.unlocked === "boolean"
-      ? o.unlocked
-      : typeof o.vault_unlocked === "boolean"
-      ? o.vault_unlocked
-      : false;
-
-  const pinSetVal =
-    typeof o.pin_set === "boolean"
-      ? o.pin_set
-      : typeof o.pinSet === "boolean"
-      ? o.pinSet
-      : false;
-
-  // some backends might return ttl_sec, ttl, expires, etc
-  const ttl = Number(o.ttl_sec ?? o.ttl ?? o.expires ?? 0) || 0;
-
-  return { enabled, unlocked: unlockedVal, pin_set: pinSetVal, ttl_sec: ttl, raw: o };
-}
-
-/**
- * Try multiple backend endpoints (through /api/proxy) until one works.
- * This avoids guessing exact backend route names.
- */
-async function postWithFallback(paths, token, body) {
-  let lastErr = null;
-  for (const p of paths) {
-    try {
-      const out = await postJson(p, token, body);
-      return { out, used: p };
-    } catch (e) {
-      lastErr = e;
-      // If it's 404, try next candidate
-      if (Number(e?.status) === 404) continue;
-      // For other errors (401/400/500), stop and show it.
-      throw e;
-    }
-  }
-  // All candidates 404
-  throw lastErr || new Error("No endpoint matched");
-}
-
 export default function VaultPage() {
   const [vaultEnabled, setVaultEnabled] = useState(false);
   const [pinSet, setPinSet] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [ttlSec, setTtlSec] = useState(0);
 
-  const [token, setToken] = useState("");
   const [pin, setPin] = useState("");
   const [newPin, setNewPin] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [last, setLast] = useState("");
-  const [lastEndpoint, setLastEndpoint] = useState("");
 
   const doorLabel = useMemo(() => {
     if (!vaultEnabled) return "DISABLED";
@@ -133,10 +83,20 @@ export default function VaultPage() {
     return "PIN NOT SET";
   }, [vaultEnabled, unlocked, pinSet]);
 
+  function normalizeVaultStatus(out) {
+    const o = out && typeof out === "object" ? out : {};
+    const enabled = typeof o.enabled === "boolean" ? o.enabled : !!o.vault_enabled;
+    const unlockedVal = typeof o.unlocked === "boolean" ? o.unlocked : !!o.vault_unlocked;
+    const pinSetVal =
+      typeof o.pin_set === "boolean" ? o.pin_set : typeof o.pinSet === "boolean" ? o.pinSet : false;
+    const ttl = Number(o.ttl_sec ?? o.ttl ?? 0) || 0;
+    return { enabled, unlocked: unlockedVal, pin_set: pinSetVal, ttl_sec: ttl, raw: o };
+  }
+
   async function refreshStatus() {
     setBusy(true);
     try {
-      const out = await getJson("/api/proxy/vault/status", token || "");
+      const out = await getJson(`${API}/vault/status`);
       const norm = normalizeVaultStatus(out);
 
       setVaultEnabled(!!norm.enabled);
@@ -145,18 +105,19 @@ export default function VaultPage() {
       setTtlSec(Number(norm.ttl_sec || 0));
 
       if (!norm.enabled) {
-        setMsg("Vault disabled on backend. Set VAULT_MASTER_KEY on Render and redeploy.");
+        setMsg("Vault disabled on backend. Check Render env: VAULT_MASTER_KEY then restart the API.");
       } else if (!norm.pin_set) {
-        setMsg("pin_not_set");
+        setMsg("Vault enabled. PIN not set yet. Use SET PIN.");
       } else if (!norm.unlocked) {
-        setMsg("Vault locked. Use PIN to unlock.");
+        setMsg("Vault enabled. Locked. Unlock with PIN.");
       } else {
         setMsg(`Vault unlocked. TTL: ${fmtSecs(norm.ttl_sec)}.`);
       }
 
       setLast(new Date().toLocaleTimeString());
     } catch (e) {
-      setMsg(String(e?.message || e));
+      const raw = String(e?.message || e);
+      setMsg(friendlyVaultError(raw) || raw);
     } finally {
       setBusy(false);
     }
@@ -170,22 +131,12 @@ export default function VaultPage() {
   async function usePinUnlock() {
     setBusy(true);
     try {
-      const candidates = [
-        "/api/proxy/vault/unlock",
-        "/api/proxy/vault/pin/unlock",
-        "/api/proxy/vault/unlock/pin",
-        "/api/proxy/vault/pin_unlock",
-        "/api/proxy/vault/pin-unlock",
-      ];
-
-      const { out, used } = await postWithFallback(candidates, token, { pin });
-      setLastEndpoint(used);
-
-      if (out?.token) setToken(out.token);
-      setMsg(out?.message || "Unlocked.");
+      const out = await postJson(`${API}/vault/unlock`, { pin });
+      setMsg(out?.ok ? "Unlocked." : "Unlock attempted.");
       await refreshStatus();
     } catch (e) {
-      setMsg(String(e?.message || e));
+      const raw = String(e?.message || e);
+      setMsg(friendlyVaultError(raw) || raw);
     } finally {
       setBusy(false);
     }
@@ -194,22 +145,14 @@ export default function VaultPage() {
   async function setPinOnBackend() {
     setBusy(true);
     try {
-      const candidates = [
-        "/api/proxy/vault/set-pin",
-        "/api/proxy/vault/pin/set",
-        "/api/proxy/vault/pin",
-        "/api/proxy/vault/set_pin",
-        "/api/proxy/vault/pin-set",
-      ];
-
-      const { out, used } = await postWithFallback(candidates, token, { pin: newPin });
-      setLastEndpoint(used);
-
-      setMsg(out?.message || `PIN set (via ${used}).`);
+      // ✅ Correct backend route: /vault/pin/set
+      const out = await postJson(`${API}/vault/pin/set`, { pin: newPin });
+      setMsg(out?.ok ? "PIN set + vault unlocked." : "PIN set.");
       setNewPin("");
       await refreshStatus();
     } catch (e) {
-      setMsg(String(e?.message || e));
+      const raw = String(e?.message || e);
+      setMsg(friendlyVaultError(raw) || raw);
     } finally {
       setBusy(false);
     }
@@ -218,43 +161,20 @@ export default function VaultPage() {
   async function lockVault() {
     setBusy(true);
     try {
-      const candidates = [
-        "/api/proxy/vault/lock",
-        "/api/proxy/vault/lockdown",
-        "/api/proxy/vault/pin/lock",
-        "/api/proxy/vault/close",
-      ];
-
-      const { out, used } = await postWithFallback(candidates, token, {});
-      setLastEndpoint(used);
-
-      setMsg(out?.message || "Locked.");
+      const out = await postJson(`${API}/vault/lock`, {});
+      setMsg(out?.ok ? "Locked." : "Lock attempted.");
       await refreshStatus();
     } catch (e) {
-      setMsg(String(e?.message || e));
+      const raw = String(e?.message || e);
+      setMsg(friendlyVaultError(raw) || raw);
     } finally {
       setBusy(false);
     }
   }
 
-  async function unlockWithPasskey() {
-    setBusy(true);
-    try {
-      const candidates = [
-        "/api/proxy/vault/webauthn/begin",
-        "/api/proxy/vault/passkey/begin",
-        "/api/proxy/vault/biometric",
-      ];
-      const { out, used } = await postWithFallback(candidates, token, {});
-      setLastEndpoint(used);
-
-      setMsg(out?.message || "Biometrics not configured on this device.");
-      await refreshStatus();
-    } catch (e) {
-      setMsg(String(e?.message || e));
-    } finally {
-      setBusy(false);
-    }
+  function unlockWithPasskey() {
+    // Your backend currently DOES NOT implement WebAuthn endpoints.
+    setMsg("Biometrics not implemented on backend yet. Use PIN.");
   }
 
   return (
@@ -298,7 +218,6 @@ export default function VaultPage() {
             }}
           >
             {msg || "—"}
-            {lastEndpoint ? `\n(last endpoint used: ${lastEndpoint})` : ""}
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
@@ -330,36 +249,17 @@ export default function VaultPage() {
             <b>KEY VAULT</b>
           </div>
           <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
-            {vaultEnabled
-              ? "Unlock the safe to add/manage keys."
-              : 'Vault is disabled on backend. Your Render "/vault/status" must show "enabled": true.'}
+            {vaultEnabled ? "Unlock the safe to add/manage keys." : "Vault is disabled on backend."}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, opacity: 0.85 }}>X-Vault-Token (optional)</div>
-              <input
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="paste token here (if you have one)"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(119,255,154,0.25)",
-                  background: "rgba(0,0,0,0.25)",
-                  color: "#77ff9a",
-                  outline: "none",
-                }}
-              />
-            </div>
-
             <div>
               <div style={{ fontSize: 12, opacity: 0.85 }}>PIN</div>
               <input
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="enter PIN"
+                inputMode="numeric"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -377,7 +277,8 @@ export default function VaultPage() {
               <input
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
-                placeholder="set a new PIN"
+                placeholder="set a new PIN (4–12 digits)"
+                inputMode="numeric"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
