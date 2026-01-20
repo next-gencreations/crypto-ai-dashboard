@@ -1,86 +1,73 @@
-// app/api/proxy/[...path]/route.js
 import { NextResponse } from "next/server";
-import { upstreamBase, joinUrl } from "../_lib";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+const API_BASE = (process.env.API_URL || "https://crypto-ai-api-1-7cte.onrender.com").replace(/\/$/, "");
 
-async function forward(req, params) {
-  const base = upstreamBase();
-
-  if (!base) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "missing_upstream_env",
-        hint:
-          "Set API_URL (recommended) or UPSTREAM_API_URL on Vercel to your Render base, e.g. https://xxxx.onrender.com",
-      },
-      { status: 500 }
-    );
-  }
-
-  const { path = [] } = params || {};
+function buildTargetUrl(req, pathParts) {
   const url = new URL(req.url);
+  const qs = url.search ? url.search : "";
+  const path = (pathParts || []).join("/");
+  return `${API_BASE}/${path}${qs}`;
+}
 
-  // Build upstream path + querystring
-  const upstreamPath = `/${path.join("/")}${url.search || ""}`;
-  const upstreamUrl = joinUrl(base, upstreamPath);
+async function proxy(req, ctx) {
+  const pathParts = ctx?.params?.path || [];
+  const target = buildTargetUrl(req, pathParts);
 
+  // Forward token if present
+  const token = req.headers.get("x-vault-token") || req.headers.get("X-Vault-Token") || "";
+
+  const headers = new Headers();
+  headers.set("Accept", "application/json");
+  if (token) headers.set("X-Vault-Token", token);
+
+  // Forward content-type only when body exists
   const method = req.method.toUpperCase();
+  let body = undefined;
 
-  // Copy headers but drop host-related ones
-  const headers = new Headers(req.headers);
-  headers.delete("host");
-  headers.set("accept", "application/json");
-
-  // Read body only when needed
-  let body;
   if (method !== "GET" && method !== "HEAD") {
-    const contentType = req.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      body = JSON.stringify(await req.json().catch(() => ({})));
-      headers.set("content-type", "application/json");
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const json = await req.json().catch(() => ({}));
+      headers.set("Content-Type", "application/json");
+      body = JSON.stringify(json || {});
     } else {
+      // fallback: forward raw body
       body = await req.text().catch(() => "");
     }
   }
 
-  const res = await fetch(upstreamUrl, {
+  const upstream = await fetch(target, {
     method,
     headers,
     body,
     cache: "no-store",
   });
 
-  const ct = res.headers.get("content-type") || "";
-  const payload = ct.includes("application/json")
-    ? await res.json().catch(() => ({}))
-    : await res.text().catch(() => "");
+  const text = await upstream.text();
 
-  // Always respond JSON to the frontend
-  if (typeof payload === "string") {
-    return NextResponse.json(
-      { ok: res.ok, status: res.status, text: payload },
-      { status: res.ok ? 200 : res.status }
-    );
-  }
+  // CORS + passthrough
+  const resp = new NextResponse(text, { status: upstream.status });
+  resp.headers.set("Content-Type", upstream.headers.get("content-type") || "application/json");
+  resp.headers.set("Access-Control-Allow-Origin", "*");
+  resp.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  resp.headers.set("Access-Control-Allow-Headers", "Content-Type, X-Vault-Token");
 
-  return NextResponse.json(
-    { ok: res.ok, status: res.status, ...payload },
-    { status: res.ok ? 200 : res.status }
-  );
+  return resp;
 }
 
-export async function GET(req, { params }) {
-  return forward(req, params);
+export async function GET(req, ctx) {
+  return proxy(req, ctx);
 }
-export async function POST(req, { params }) {
-  return forward(req, params);
+export async function POST(req, ctx) {
+  return proxy(req, ctx);
 }
-export async function PUT(req, { params }) {
-  return forward(req, params);
-}
-export async function DELETE(req, { params }) {
-  return forward(req, params);
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Vault-Token",
+    },
+  });
 }
