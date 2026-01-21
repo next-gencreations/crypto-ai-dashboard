@@ -1,37 +1,35 @@
-"use client"; 
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * VaultPage (fixed endpoints)
- * Backend routes (from your crypto-ai-api):
- *   GET  /vault/status
- *   POST /vault/pin/set
- *   POST /vault/unlock
- *   POST /vault/lock
+ * VaultPage (fixed endpoints to match crypto-ai-api)
+ *
+ * Backend routes (crypto-ai-api):
+ *  GET  /vault/status
+ *  POST /vault/pin/set
+ *  POST /vault/unlock
+ *  POST /vault/lock
+ *
+ * These are accessed through Next proxy:
+ *  /api/proxy/<same-path-as-backend>
  */
 
-async function readJsonResponse(res) {
+async function readJson(res) {
   const txt = await res.text();
   let data = null;
-
   try {
     data = txt ? JSON.parse(txt) : null;
   } catch {
     data = { _raw: txt };
   }
-
   if (!res.ok) {
     const msg =
       (data && (data.error || data.detail || data.message)) ||
       (typeof txt === "string" && txt.trim() ? txt.trim() : null) ||
       `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    err.data = data;
-    throw err;
+    throw new Error(msg);
   }
-
   return data || {};
 }
 
@@ -41,7 +39,7 @@ async function getJson(url, token) {
     headers: token ? { "X-Vault-Token": token } : {},
     cache: "no-store",
   });
-  return readJsonResponse(res);
+  return readJson(res);
 }
 
 async function postJson(url, token, body) {
@@ -54,7 +52,7 @@ async function postJson(url, token, body) {
     body: JSON.stringify(body || {}),
     cache: "no-store",
   });
-  return readJsonResponse(res);
+  return readJson(res);
 }
 
 function fmtSecs(n) {
@@ -78,9 +76,6 @@ export default function VaultPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [last, setLast] = useState("");
-
-  // handy debug line so you can see exactly what the UI last called
-  const [lastReq, setLastReq] = useState("");
 
   const doorLabel = useMemo(() => {
     if (!vaultEnabled) return "DISABLED";
@@ -121,9 +116,7 @@ export default function VaultPage() {
   async function refreshStatus() {
     setBusy(true);
     try {
-      setLastReq(`GET /api/proxy/vault/status`);
       const out = await getJson("/api/proxy/vault/status", "");
-
       const norm = normalizeVaultStatus(out);
 
       setVaultEnabled(!!norm.enabled);
@@ -133,7 +126,7 @@ export default function VaultPage() {
 
       if (!norm.enabled) {
         setMsg(
-          'Vault disabled on backend. Render must return {"enabled": true} from /vault/status.'
+          "Vault disabled on backend. Check Render env: VAULT_MASTER_KEY and restart service. | endpoint: /vault/status"
         );
       } else if (!norm.pin_set) {
         setMsg("Vault enabled. PIN not set yet. Use SET PIN.");
@@ -159,13 +152,10 @@ export default function VaultPage() {
   async function usePinUnlock() {
     setBusy(true);
     try {
-      setLastReq(`POST /api/proxy/vault/unlock  body={pin}`);
+      // Backend expects: POST /vault/unlock { pin }
       const out = await postJson("/api/proxy/vault/unlock", token, { pin });
-
-      // backend may or may not return a token; keep what user typed if none returned
-      if (out?.token) setToken(out.token);
-
-      setMsg(out?.message || out?.status || "Unlocked.");
+      setToken(out?.token || token);
+      setMsg(out?.message || "Unlocked.");
       await refreshStatus();
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -177,14 +167,10 @@ export default function VaultPage() {
   async function setPinOnBackend() {
     setBusy(true);
     try {
-      // ✅ FIX: correct backend route is /vault/pin/set
-      setLastReq(`POST /api/proxy/vault/pin/set  body={pin:newPin}`);
+      // ✅ FIX: backend route is /vault/pin/set (NOT /vault/set-pin)
       const out = await postJson("/api/proxy/vault/pin/set", token, { pin: newPin });
-
-      setMsg(out?.message || out?.status || "PIN set.");
+      setMsg(out?.message || "PIN set.");
       setNewPin("");
-
-      // after setting pin, backend usually leaves vault unlocked=false but pin_set=true
       await refreshStatus();
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -196,9 +182,9 @@ export default function VaultPage() {
   async function lockVault() {
     setBusy(true);
     try {
-      setLastReq(`POST /api/proxy/vault/lock  body={}`);
+      // Backend: POST /vault/lock
       const out = await postJson("/api/proxy/vault/lock", token, {});
-      setMsg(out?.message || out?.status || "Locked.");
+      setMsg(out?.message || "Locked.");
       await refreshStatus();
     } catch (e) {
       setMsg(String(e?.message || e));
@@ -208,12 +194,19 @@ export default function VaultPage() {
   }
 
   async function unlockWithPasskey() {
-    // Not implemented in your backend (so we don't call a missing endpoint)
-    setMsg("Biometrics not implemented on backend yet. Use PIN.");
+    // Your backend zip does NOT expose webauthn routes.
+    // So we keep the button but make it a friendly message instead of a guaranteed 404.
+    try {
+      const supported = typeof window !== "undefined" && "PublicKeyCredential" in window;
+      if (!supported) {
+        setMsg("Biometrics not supported on this device/browser. Use PIN.");
+        return;
+      }
+      setMsg("Biometrics not configured on backend. Use PIN for now.");
+    } catch (e) {
+      setMsg(String(e?.message || e));
+    }
   }
-
-  const canSetPin = !!newPin && newPin.length >= 4;
-  const canUsePin = !!pin && pin.length >= 4;
 
   return (
     <main style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
@@ -234,10 +227,6 @@ export default function VaultPage() {
             {unlocked ? "UNLOCKED" : "LOCKED"}
           </div>
           <div style={{ fontSize: 12, opacity: 0.8 }}>Last: {last || "—"}</div>
-        </div>
-
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>
-          Last request: <span style={{ opacity: 0.95 }}>{lastReq || "—"}</span>
         </div>
 
         <div style={{ marginTop: 14, padding: 14, borderRadius: 14, border: "1px solid rgba(119,255,154,0.18)" }}>
@@ -266,15 +255,19 @@ export default function VaultPage() {
             <button className="btn" disabled={busy} onClick={unlockWithPasskey}>
               UNLOCK (BIOMETRICS)
             </button>
-            <button className="btn" disabled={busy || !canUsePin} onClick={usePinUnlock}>
+
+            <button className="btn" disabled={busy || !pin} onClick={usePinUnlock}>
               USE PIN
             </button>
-            <button className="btn" disabled={busy || !canSetPin} onClick={setPinOnBackend}>
+
+            <button className="btn" disabled={busy || !newPin} onClick={setPinOnBackend}>
               SET PIN
             </button>
+
             <button className="btn" disabled={busy} onClick={lockVault}>
               LOCK
             </button>
+
             <button className="btn" disabled={busy} onClick={refreshStatus}>
               REFRESH
             </button>
@@ -293,7 +286,7 @@ export default function VaultPage() {
           <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
             {vaultEnabled
               ? "Unlock the safe to add/manage keys."
-              : 'Vault is disabled on backend. Your API must show {"enabled": true} from /vault/status.'}
+              : "Vault is disabled on backend. Your /vault/status must show \"enabled\": true."}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 }}>
@@ -321,8 +314,6 @@ export default function VaultPage() {
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="enter PIN"
-                inputMode="numeric"
-                type="password"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -340,9 +331,7 @@ export default function VaultPage() {
               <input
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
-                placeholder="set a new PIN (min 4 digits)"
-                inputMode="numeric"
-                type="password"
+                placeholder="set a new PIN"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
