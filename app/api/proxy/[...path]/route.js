@@ -1,116 +1,70 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Catch-all proxy:
- * /api/proxy/<anything>  ->  ${API_URL}/<anything>
- *
- * It forwards:
- *  - method
- *  - query string
- *  - body (json/text)
- *  - headers (except host)
- *
- * It also adds CORS headers so browser calls work.
- */
-
-function getBaseUrl() {
-  // Prefer server env vars (set these in Vercel -> Project -> Settings -> Environment Variables)
-  const candidates = [
-    process.env.API_URL,
-    process.env.NEXT_PUBLIC_API_URL,
-    process.env.CRYPTO_AI_API_URL,
-    process.env.NEXT_PUBLIC_CRYPTO_AI_API_URL,
-  ].filter(Boolean);
-
-  const base = (candidates[0] || "https://crypto-ai-api-1-7cte.onrender.com").trim();
-  return base.replace(/\/+$/, "");
+function upstreamBase() {
+  return (process.env.UPSTREAM_API_URL ||
+    process.env.RENDER_API_URL ||
+    process.env.UPSTREAM_URL ||
+    "https://crypto-ai-api-1-7cte.onrender.com")
+    .trim()
+    .replace(/\/+$/, "");
 }
 
-function withCors(res) {
-  res.headers.set("Access-Control-Allow-Origin", "*");
-  res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type, X-Vault-Token, Authorization");
-  return res;
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, X-Vault-Token",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Cache-Control": "no-store",
+  };
 }
 
-async function handler(req, ctx) {
-  const base = getBaseUrl();
-  const pathParts = (ctx?.params?.path || []).map(encodeURIComponent).join("/");
-  const url = new URL(req.url);
+async function proxy(req, ctx) {
+  const base = upstreamBase();
+  const parts = (ctx?.params?.path || []).map(String);
+  const url = new URL(`${base}/${parts.join("/")}`);
 
-  // Build target URL (preserve query string)
-  const target = `${base}/${pathParts}${url.search || ""}`;
+  // preserve querystring
+  const incoming = new URL(req.url);
+  incoming.searchParams.forEach((v, k) => url.searchParams.set(k, v));
 
-  // Copy headers (remove host + content-length)
-  const headers = new Headers(req.headers);
-  headers.delete("host");
-  headers.delete("content-length");
+  const headers = new Headers();
+  const vaultToken = req.headers.get("x-vault-token");
+  if (vaultToken) headers.set("X-Vault-Token", vaultToken);
 
-  // Body handling: only send body for non-GET/HEAD
-  const method = req.method.toUpperCase();
+  const method = req.method || "GET";
   let body = undefined;
 
-  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-    // Read raw body (works for JSON or text)
-    const buf = await req.arrayBuffer();
-    body = buf.byteLength ? Buffer.from(buf) : undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const j = await req.json().catch(() => ({}));
+      body = JSON.stringify(j);
+      headers.set("Content-Type", "application/json");
+    } else {
+      body = await req.text();
+      if (ct) headers.set("Content-Type", ct);
+    }
   }
 
-  // OPTIONS preflight
-  if (method === "OPTIONS") {
-    return withCors(new Response(null, { status: 204 }));
-  }
+  const upstreamRes = await fetch(url.toString(), { method, headers, body, cache: "no-store" });
 
-  let upstreamRes;
-  try {
-    upstreamRes = await fetch(target, {
-      method,
-      headers,
-      body,
-      cache: "no-store",
-    });
-  } catch (err) {
-    const msg = String(err?.message || err);
-    return withCors(
-      new Response(JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: msg }), {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-  }
+  const respHeaders = new Headers(corsHeaders());
+  const upstreamCT = upstreamRes.headers.get("content-type");
+  if (upstreamCT) respHeaders.set("content-type", upstreamCT);
 
-  // Pass through response body + status
-  const respBody = await upstreamRes.arrayBuffer();
-  const outHeaders = new Headers(upstreamRes.headers);
+  const data = await upstreamRes.arrayBuffer();
+  return new Response(data, { status: upstreamRes.status, headers: respHeaders });
+}
 
-  // Make sure browser can read it
-  outHeaders.set("Cache-Control", "no-store");
-  outHeaders.delete("content-encoding"); // avoid weird gzip issues sometimes
-
-  const res = new Response(respBody, {
-    status: upstreamRes.status,
-    headers: outHeaders,
-  });
-
-  return withCors(res);
+export async function OPTIONS() {
+  return new Response("", { status: 200, headers: corsHeaders() });
 }
 
 export async function GET(req, ctx) {
-  return handler(req, ctx);
+  return proxy(req, ctx);
 }
+
 export async function POST(req, ctx) {
-  return handler(req, ctx);
-}
-export async function PUT(req, ctx) {
-  return handler(req, ctx);
-}
-export async function PATCH(req, ctx) {
-  return handler(req, ctx);
-}
-export async function DELETE(req, ctx) {
-  return handler(req, ctx);
-}
-export async function OPTIONS(req, ctx) {
-  return handler(req, ctx);
+  return proxy(req, ctx);
 }
