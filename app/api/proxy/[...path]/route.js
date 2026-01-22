@@ -1,70 +1,47 @@
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-function upstreamBase() {
-  return (process.env.UPSTREAM_API_URL ||
-    process.env.RENDER_API_URL ||
-    process.env.UPSTREAM_URL ||
-    "https://crypto-ai-api-1-7cte.onrender.com")
-    .trim()
-    .replace(/\/+$/, "");
+function rewriteLegacy(path) {
+  // Support old/legacy vault routes that some UI builds may still call
+  // Old:  /vault/set-pin  -> New: /vault/pin/set
+  if (path === "/vault/set-pin") return "/vault/pin/set";
+  if (path === "/vault/use-pin") return "/vault/unlock"; // (optional legacy)
+  return path;
 }
 
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, X-Vault-Token",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Cache-Control": "no-store",
+async function forward(req, ctx) {
+  const API_BASE = process.env.API_BASE || "https://crypto-ai-api-1-7cte.onrender.com";
+
+  const raw = "/" + (ctx?.params?.path || []).join("/");
+  const path = rewriteLegacy(raw);
+
+  const url = API_BASE.replace(/\/$/, "") + path;
+
+  const headers = new Headers(req.headers);
+  headers.delete("host");
+
+  const init = {
+    method: req.method,
+    headers,
+    redirect: "manual",
   };
-}
 
-async function proxy(req, ctx) {
-  const base = upstreamBase();
-  const parts = (ctx?.params?.path || []).map(String);
-  const url = new URL(`${base}/${parts.join("/")}`);
-
-  // preserve querystring
-  const incoming = new URL(req.url);
-  incoming.searchParams.forEach((v, k) => url.searchParams.set(k, v));
-
-  const headers = new Headers();
-  const vaultToken = req.headers.get("x-vault-token");
-  if (vaultToken) headers.set("X-Vault-Token", vaultToken);
-
-  const method = req.method || "GET";
-  let body = undefined;
-
-  if (method !== "GET" && method !== "HEAD") {
-    const ct = req.headers.get("content-type") || "";
-    if (ct.includes("application/json")) {
-      const j = await req.json().catch(() => ({}));
-      body = JSON.stringify(j);
-      headers.set("Content-Type", "application/json");
-    } else {
-      body = await req.text();
-      if (ct) headers.set("Content-Type", ct);
-    }
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    init.body = await req.arrayBuffer();
   }
 
-  const upstreamRes = await fetch(url.toString(), { method, headers, body, cache: "no-store" });
+  const res = await fetch(url, init);
 
-  const respHeaders = new Headers(corsHeaders());
-  const upstreamCT = upstreamRes.headers.get("content-type");
-  if (upstreamCT) respHeaders.set("content-type", upstreamCT);
+  const outHeaders = new Headers(res.headers);
+  outHeaders.set("x-proxy-upstream", url);
 
-  const data = await upstreamRes.arrayBuffer();
-  return new Response(data, { status: upstreamRes.status, headers: respHeaders });
+  return new Response(res.body, {
+    status: res.status,
+    headers: outHeaders,
+  });
 }
 
-export async function OPTIONS() {
-  return new Response("", { status: 200, headers: corsHeaders() });
-}
-
-export async function GET(req, ctx) {
-  return proxy(req, ctx);
-}
-
-export async function POST(req, ctx) {
-  return proxy(req, ctx);
-}
+export async function GET(req, ctx) { return forward(req, ctx); }
+export async function POST(req, ctx) { return forward(req, ctx); }
+export async function PUT(req, ctx) { return forward(req, ctx); }
+export async function PATCH(req, ctx) { return forward(req, ctx); }
+export async function DELETE(req, ctx) { return forward(req, ctx); }
