@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * VaultPage (fixed endpoints to match crypto-ai-api)
+ * VaultPage (endpoints match crypto-ai-api)
  *
  * Backend routes (crypto-ai-api):
  *  GET  /vault/status
@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useState } from "react";
  *  POST /vault/unlock
  *  POST /vault/lock
  *
- * These are accessed through Next proxy:
+ * Accessed through Next proxy:
  *  /api/proxy/<same-path-as-backend>
  */
 
@@ -167,7 +167,8 @@ export default function VaultPage() {
   async function setPinOnBackend() {
     setBusy(true);
     try {
-      // ✅ FIX: backend route is /vault/pin/set (NOT /vault/set-pin)
+      // ✅ correct backend route:
+      // POST /vault/pin/set { pin }
       const out = await postJson("/api/proxy/vault/pin/set", token, { pin: newPin });
       setMsg(out?.message || "PIN set.");
       setNewPin("");
@@ -194,8 +195,8 @@ export default function VaultPage() {
   }
 
   async function unlockWithPasskey() {
-    // Your backend zip does NOT expose webauthn routes.
-    // So we keep the button but make it a friendly message instead of a guaranteed 404.
+    // Your backend does NOT expose WebAuthn routes in the zip you gave me.
+    // So we keep the button but avoid a guaranteed 404.
     try {
       const supported = typeof window !== "undefined" && "PublicKeyCredential" in window;
       if (!supported) {
@@ -286,7 +287,7 @@ export default function VaultPage() {
           <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
             {vaultEnabled
               ? "Unlock the safe to add/manage keys."
-              : "Vault is disabled on backend. Your /vault/status must show \"enabled\": true."}
+              : 'Vault is disabled on backend. Your /vault/status must show "enabled": true.'}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 }}>
