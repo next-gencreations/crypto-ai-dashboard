@@ -1,24 +1,41 @@
 export const runtime = "nodejs";
 
 function rewriteLegacy(path) {
-  // Support old/legacy vault routes that some UI builds may still call
-  // Old:  /vault/set-pin  -> New: /vault/pin/set
+  // Support old/legacy vault routes that some UI builds used
   if (path === "/vault/set-pin") return "/vault/pin/set";
-  if (path === "/vault/use-pin") return "/vault/unlock"; // (optional legacy)
+  if (path === "/vault/use-pin") return "/vault/unlock";
   return path;
 }
 
-async function forward(req, ctx) {
-  const API_BASE = process.env.API_BASE || "https://crypto-ai-api-1-7cte.onrender.com";
+function getApiBase() {
+  // Prefer Vercel env var, fallback to your Render URL
+  return (
+    process.env.API_BASE ||
+    "https://crypto-ai-api-1-7cte.onrender.com"
+  ).replace(/\/$/, "");
+}
 
-  const raw = "/" + (ctx?.params?.path || []).join("/");
+async function forward(req, ctx) {
+  const API_BASE = getApiBase();
+
+  const raw = "/" + ((ctx?.params?.path || []).join("/"));
   const path = rewriteLegacy(raw);
 
-  const url = API_BASE.replace(/\/$/, "") + path;
+  const url = API_BASE + path;
 
+  // Copy headers but remove ones that can break proxying
   const headers = new Headers(req.headers);
   headers.delete("host");
+  headers.delete("content-length");
 
+  // If we’re sending JSON, ensure content-type exists (some clients omit it)
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    if (!headers.get("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+  }
+
+  // Forward body safely
   const init = {
     method: req.method,
     headers,
@@ -26,13 +43,23 @@ async function forward(req, ctx) {
   };
 
   if (req.method !== "GET" && req.method !== "HEAD") {
-    init.body = await req.arrayBuffer();
+    // Use raw stream to avoid JSON parse errors causing 500 in the proxy
+    init.body = req.body;
   }
 
-  const res = await fetch(url, init);
+  let res;
+  try {
+    res = await fetch(url, init);
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: String(e) }),
+      { status: 502, headers: { "content-type": "application/json" } }
+    );
+  }
 
+  // Pass response through (including non-200)
   const outHeaders = new Headers(res.headers);
-  outHeaders.set("x-proxy-upstream", url);
+  outHeaders.set("access-control-allow-origin", "*");
 
   return new Response(res.body, {
     status: res.status,
@@ -45,3 +72,13 @@ export async function POST(req, ctx) { return forward(req, ctx); }
 export async function PUT(req, ctx) { return forward(req, ctx); }
 export async function PATCH(req, ctx) { return forward(req, ctx); }
 export async function DELETE(req, ctx) { return forward(req, ctx); }
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "access-control-allow-headers": "*",
+    },
+  });
+}
