@@ -1,86 +1,82 @@
 // app/api/proxy/_lib.js
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-function upstreamBase() {
+// Prefer API_BASE, else UPSTREAM_API_URL, else NEXT_PUBLIC_API_URL, else fallback
+export function getApiBase() {
   const base =
-    (process.env.UPSTREAM_API_URL ||
-      process.env.RENDER_API_URL ||
-      process.env.UPSTREAM_URL ||
-      "")
-      .trim()
-      .replace(/\/+$/, "");
-  return base;
+    process.env.API_BASE ||
+    process.env.UPSTREAM_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://crypto-ai-api-1-7cte.onrender.com";
+
+  return String(base).replace(/\/$/, "");
 }
 
-function joinUrl(base, path) {
-  const p = String(path || "").replace(/^\/+/, "");
-  return `${base}/${p}`;
+export function addCors(headers) {
+  headers.set("access-control-allow-origin", "*");
+  headers.set("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  headers.set("access-control-allow-headers", "*");
+  return headers;
 }
 
-async function forward(req, ctx) {
-  const base = upstreamBase();
-  if (!base) {
-    return new Response(
-      JSON.stringify({ error: "Missing UPSTREAM_API_URL (or RENDER_API_URL) on Vercel." }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      }
-    );
-  }
+export function rewriteLegacy(path) {
+  // Support old/legacy vault routes that some UI builds used
+  if (path === "/vault/set-pin") return "/vault/pin/set";
+  if (path === "/vault/use-pin") return "/vault/unlock";
+  return path;
+}
 
-  // Support both catch-all routes and "path passed in ctx"
-  const pathParts = ctx?.params?.path || [];
-  const path = Array.isArray(pathParts) ? pathParts.join("/") : String(pathParts || "");
-  const url = joinUrl(base, path);
+export async function proxyFetch(req, upstreamPath) {
+  const API_BASE = getApiBase();
+  const url = API_BASE + upstreamPath;
 
+  // Copy headers but remove ones that can break proxying
   const headers = new Headers(req.headers);
   headers.delete("host");
+  headers.delete("content-length");
 
-  if (!headers.get("accept")) headers.set("accept", "application/json");
-
-  const init = {
-    method: req.method,
-    headers,
-    cache: "no-store",
-  };
-
+  // Ensure JSON content-type for non-GET if missing
   if (req.method !== "GET" && req.method !== "HEAD") {
-    const buf = await req.arrayBuffer();
-    init.body = buf;
+    if (!headers.get("content-type")) {
+      headers.set("content-type", "application/json");
+    }
   }
 
-  const upstreamRes = await fetch(url, init);
+  // Read body safely (prevents stream/duplex issues on Vercel)
+  let body;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    try {
+      const buf = await req.arrayBuffer();
+      if (buf && buf.byteLength > 0) body = buf;
+    } catch {
+      // ignore body read failure
+    }
+  }
 
-  const resHeaders = new Headers(upstreamRes.headers);
-  resHeaders.set("Cache-Control", "no-store");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
 
-  const body = await upstreamRes.arrayBuffer();
+  let res;
+  try {
+    res = await fetch(url, {
+      method: req.method,
+      headers,
+      body,
+      redirect: "manual",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timeout);
+    const errHeaders = addCors(new Headers({ "content-type": "application/json" }));
+    return new Response(
+      JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: String(e) }),
+      { status: 502, headers: errHeaders }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
-  return new Response(body, {
-    status: upstreamRes.status,
-    headers: resHeaders,
-  });
-}
-
-// helpers for single-path routes (like /api/proxy/settings -> /settings)
-export async function proxyGet(req, upstreamPath) {
-  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
-}
-
-export async function proxyPost(req, upstreamPath) {
-  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
-}
-
-export async function proxyPut(req, upstreamPath) {
-  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
-}
-
-export async function proxyDelete(req, upstreamPath) {
-  return forward(req, { params: { path: [String(upstreamPath || "").replace(/^\/+/, "")] } });
-}
-
-export async function proxyAny(req, ctx) {
-  return forward(req, ctx);
+  const outHeaders = addCors(new Headers(res.headers));
+  return new Response(res.body, { status: res.status, headers: outHeaders });
 }
