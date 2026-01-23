@@ -106,7 +106,14 @@ function pickLastTradePnl(data) {
 
 export default function HomePage() {
   // display-only (proxy handles actual upstream)
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+  // IMPORTANT:
+  // Always call the backend THROUGH the Next.js proxy.
+  // If you point the frontend directly at Render you can hit CORS/HTTPS/mixed-content issues
+  // and (on some mobile networks) odd intermittent 404/500 behaviour.
+  const envBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  const apiBase = (envBase && /^https?:\/\//i.test(envBase))
+    ? "/api/proxy"
+    : (envBase || "/api/proxy").replace(/\/+$/, "");
 
   const [tab, setTab] = useState("status");
   const [err, setErr] = useState("");
