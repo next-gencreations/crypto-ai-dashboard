@@ -524,7 +524,11 @@ async function fetchJson(url, signal) {
 }
 
 export default function CandlesPage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+  // IMPORTANT: always hit the backend via the Next.js proxy route.
+  const envBase = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+  const apiBase = (envBase && /^https?:\/\//i.test(envBase))
+    ? "/api/proxy"
+    : (envBase || "/api/proxy").replace(/\/+$/, "");
 
   const [err, setErr] = useState("");
   const [lastFetchAt, setLastFetchAt] = useState(null);
