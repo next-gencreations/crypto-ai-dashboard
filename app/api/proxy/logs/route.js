@@ -1,9 +1,9 @@
 // app/api/proxy/logs/route.js
-import { NextResponse } from "next/server";
-import { proxyGet } from "../_lib";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+import { NextResponse } from "next/server";
+import { proxyFetch } from "../_lib";
 
 function toLine(e) {
   const t = e.time_utc || e.time || "";
@@ -12,15 +12,20 @@ function toLine(e) {
   return `${t} | ${type} | ${msg}`;
 }
 
-export async function GET() {
-  // Your API doesn’t have /logs — it has /data which contains events/trades
-  const d = await proxyGet("/data");
+export async function GET(req) {
+  // Fetch /data properly (status preserved)
+  const res = await proxyFetch(req, "/data");
 
-  if (!d || d.ok === false) {
+  if (!res.ok) {
     return NextResponse.json(
-      { ok: false, lines: [], error: d?.error || "failed_to_fetch_data" },
+      { ok: false, lines: [], error: `data_failed_${res.status}` },
       { status: 200 }
     );
+  }
+
+  const d = await res.json().catch(() => null);
+  if (!d) {
+    return NextResponse.json({ ok: false, lines: [], error: "data_non_json" }, { status: 200 });
   }
 
   const events = Array.isArray(d.events) ? d.events : [];
@@ -37,8 +42,6 @@ export async function GET() {
   });
 
   const eventLines = events.slice(-80).map(toLine);
-
-  // Merge newest last
   const lines = [...eventLines, ...tradeLines].slice(-120);
 
   return NextResponse.json({ ok: true, lines }, { status: 200 });
