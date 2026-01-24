@@ -1,8 +1,9 @@
 // app/api/proxy/data/route.js
-import { NextResponse } from "next/server";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { proxyGet } from "../_lib";
 
-export async function GET() {
-  const out = await proxyGet("/data");
-  return NextResponse.json(out);
+export async function GET(req) {
+  return proxyGet(req, "/data");
 }
