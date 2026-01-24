@@ -1,16 +1,9 @@
-import { NextResponse } from "next/server";
+// app/api/proxy/health/route.js
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export const dynamic = "force-dynamic"; // avoid caching
-export const runtime = "nodejs"; // ensure Node runtime
+import { proxyGet } from "../_lib";
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      status: "ok",
-      service: "crypto-ai-dashboard",
-      env: process.env.NODE_ENV ?? "unknown",
-      timestamp: new Date().toISOString(),
-    },
-    { status: 200 }
-  );
+export async function GET(req) {
+  return proxyGet(req, "/health");
 }
