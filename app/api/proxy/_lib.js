@@ -1,56 +1,86 @@
 // app/api/proxy/_lib.js
 export const runtime = "nodejs";
 
-// Prefer API_BASE, else UPSTREAM_API_URL, else NEXT_PUBLIC_API_URL, else fallback
+/**
+ * Returns the upstream base URL for Render (or any upstream API).
+ * IMPORTANT:
+ * - NEVER use NEXT_PUBLIC_API_URL here, because it's often "/api/proxy" (a local path),
+ *   which causes proxy loops / invalid URLs.
+ */
 export function getApiBase() {
-  const base =
-    process.env.API_BASE ||
-    process.env.UPSTREAM_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://crypto-ai-api-1-7cte.onrender.com";
+  const candidates = [
+    process.env.UPSTREAM_API_URL,
+    process.env.API_BASE,
+    process.env.API_URL,
+    // last-resort hardcoded fallback (ok for emergency, but keep env set in production)
+    "https://crypto-ai-api-1-7cte.onrender.com",
+  ].filter(Boolean);
 
-  return String(base).replace(/\/$/, "");
+  const base = String(candidates[0] || "").trim().replace(/\/$/, "");
+
+  // Must be absolute http(s)
+  if (!/^https?:\/\//i.test(base)) {
+    throw new Error(
+      `Invalid upstream base URL. Set UPSTREAM_API_URL (recommended) to a full https://... value. Got: ${base}`
+    );
+  }
+
+  return base;
 }
 
-export function addCors(headers) {
-  headers.set("access-control-allow-origin", "*");
+function corsOriginFromReq(req) {
+  // If you want strict origin, set CORS_ORIGIN on Vercel (optional)
+  // otherwise reflect the request origin.
+  const origin = req?.headers?.get?.("origin");
+  return origin || "*";
+}
+
+export function addCors(headers, req) {
+  const origin = corsOriginFromReq(req);
+
+  headers.set("access-control-allow-origin", origin);
   headers.set("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  headers.set("access-control-allow-headers", "*");
+  headers.set("access-control-allow-headers", "Content-Type, Authorization");
+  headers.set("access-control-allow-credentials", "true");
+  headers.set("vary", "Origin");
   return headers;
 }
 
 export function rewriteLegacy(path) {
-  // Support old/legacy vault routes that some UI builds used
-  if (path === "/vault/set-pin") return "/vault/pin/set";
+  // Your UI calls /api/vault/... but the Render API uses /api/...
+  // We'll also support old legacy paths.
+
+  // Legacy support:
+  if (path === "/vault/set-pin") return "/vault/pin";
   if (path === "/vault/use-pin") return "/vault/unlock";
+
   return path;
 }
 
 export async function proxyFetch(req, upstreamPath) {
   const API_BASE = getApiBase();
-  const url = API_BASE + upstreamPath;
+
+  // Preserve querystring from original request
+  const incomingUrl = new URL(req.url);
+  const qs = incomingUrl.search ? incomingUrl.search : "";
+
+  const url = API_BASE + upstreamPath + qs;
 
   // Copy headers but remove ones that can break proxying
   const headers = new Headers(req.headers);
   headers.delete("host");
   headers.delete("content-length");
 
-  // Ensure JSON content-type for non-GET if missing
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    if (!headers.get("content-type")) {
-      headers.set("content-type", "application/json");
-    }
-  }
+  // If upstream is JSON, keep content-type if present.
+  // Don't force JSON if caller is sending form-data etc.
+  // (forcing it causes 415/400 issues)
+  // So: no "auto content-type" here.
 
   // Read body safely (prevents stream/duplex issues on Vercel)
   let body;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    try {
-      const buf = await req.arrayBuffer();
-      if (buf && buf.byteLength > 0) body = buf;
-    } catch {
-      // ignore body read failure
-    }
+  if (!["GET", "HEAD"].includes(req.method)) {
+    const buf = await req.arrayBuffer().catch(() => null);
+    if (buf && buf.byteLength > 0) body = buf;
   }
 
   const controller = new AbortController();
@@ -68,7 +98,7 @@ export async function proxyFetch(req, upstreamPath) {
     });
   } catch (e) {
     clearTimeout(timeout);
-    const errHeaders = addCors(new Headers({ "content-type": "application/json" }));
+    const errHeaders = addCors(new Headers({ "content-type": "application/json" }), req);
     return new Response(
       JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: String(e) }),
       { status: 502, headers: errHeaders }
@@ -77,6 +107,9 @@ export async function proxyFetch(req, upstreamPath) {
     clearTimeout(timeout);
   }
 
-  const outHeaders = addCors(new Headers(res.headers));
+  // Relay upstream response (status + headers + body)
+  const outHeaders = addCors(new Headers(res.headers), req);
+  outHeaders.set("cache-control", "no-store");
+
   return new Response(res.body, { status: res.status, headers: outHeaders });
 }
