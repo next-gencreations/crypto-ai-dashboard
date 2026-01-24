@@ -2,17 +2,15 @@
 export const runtime = "nodejs";
 
 /**
- * Returns the upstream base URL for Render (or any upstream API).
- * IMPORTANT:
- * - NEVER use NEXT_PUBLIC_API_URL here, because it's often "/api/proxy" (a local path),
- *   which causes proxy loops / invalid URLs.
+ * Returns the upstream base URL for your Render API.
+ * NEVER use NEXT_PUBLIC_API_URL here (it's usually "/api/proxy" and causes loops).
  */
 export function getApiBase() {
   const candidates = [
     process.env.UPSTREAM_API_URL,
     process.env.API_BASE,
     process.env.API_URL,
-    // last-resort hardcoded fallback (ok for emergency, but keep env set in production)
+    // last resort fallback:
     "https://crypto-ai-api-1-7cte.onrender.com",
   ].filter(Boolean);
 
@@ -21,16 +19,18 @@ export function getApiBase() {
   // Must be absolute http(s)
   if (!/^https?:\/\//i.test(base)) {
     throw new Error(
-      `Invalid upstream base URL. Set UPSTREAM_API_URL (recommended) to a full https://... value. Got: ${base}`
+      `Invalid upstream base URL. Set UPSTREAM_API_URL to a full https://... value. Got: ${base}`
     );
   }
 
   return base;
 }
 
+/**
+ * CORS helper. In practice, if you call the proxy from the browser
+ * (same-origin), CORS is rarely needed, but preflight can still happen.
+ */
 function corsOriginFromReq(req) {
-  // If you want strict origin, set CORS_ORIGIN on Vercel (optional)
-  // otherwise reflect the request origin.
   const origin = req?.headers?.get?.("origin");
   return origin || "*";
 }
@@ -43,20 +43,43 @@ export function addCors(headers, req) {
   headers.set("access-control-allow-headers", "Content-Type, Authorization");
   headers.set("access-control-allow-credentials", "true");
   headers.set("vary", "Origin");
+
   return headers;
 }
 
+/**
+ * Rewrite paths from the Vercel proxy into the paths your Render API expects.
+ *
+ * What we learned from your logs:
+ * - Vercel calls:   /vault/status
+ * - Render expects: /api/vault/status
+ *
+ * Also:
+ * - Render serves /data, /logs, /ohlc, /settings at ROOT (no /api prefix)
+ */
 export function rewriteLegacy(path) {
-  // Your UI calls /api/vault/... but the Render API uses /api/...
-  // We'll also support old legacy paths.
+  // If already correct, keep it
+  if (path.startsWith("/api/")) return path;
 
-  // Legacy support:
-  if (path === "/vault/set-pin") return "/vault/pin";
-  if (path === "/vault/use-pin") return "/vault/unlock";
+  // Legacy UI compatibility
+  if (path === "/vault/set-pin") return "/api/vault/pin";
+  if (path === "/vault/use-pin") return "/api/vault/unlock";
 
+  // Modern vault endpoints are under /api on upstream
+  if (path.startsWith("/vault/")) return "/api" + path;
+
+  // Common API endpoints also under /api on upstream
+  if (path === "/status") return "/api/status";
+  if (path === "/bankroll") return "/api/bankroll";
+
+  // Everything else stays root (data/logs/ohlc/settings/etc.)
   return path;
 }
 
+/**
+ * Proxies the incoming request to the upstream Render API.
+ * Preserves querystring, forwards headers + body safely for Vercel.
+ */
 export async function proxyFetch(req, upstreamPath) {
   const API_BASE = getApiBase();
 
@@ -71,10 +94,8 @@ export async function proxyFetch(req, upstreamPath) {
   headers.delete("host");
   headers.delete("content-length");
 
-  // If upstream is JSON, keep content-type if present.
-  // Don't force JSON if caller is sending form-data etc.
-  // (forcing it causes 415/400 issues)
-  // So: no "auto content-type" here.
+  // DO NOT force content-type; it can break form-data.
+  // Keep whatever the client sent.
 
   // Read body safely (prevents stream/duplex issues on Vercel)
   let body;
