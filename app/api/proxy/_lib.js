@@ -1,126 +1,165 @@
 // app/api/proxy/_lib.js
-export const runtime = "nodejs";
+//
+// Proxy helpers for the Next.js dashboard.
+// This version is aligned with the Node/Express backend on Render
+// which serves routes at ROOT (no /api prefix).
+//
+// The dashboard calls /api/proxy/<path...> and we forward to API_URL.
+//
+// Required env on Vercel:
+// - API_URL = https://crypto-ai-api-1-7cte.onrender.com   (your Render base URL)
 
-// Prefer API_BASE, else UPSTREAM_API_URL, else NEXT_PUBLIC_API_URL, else fallback
-export function getApiBase() {
+const DEFAULT_TIMEOUT_MS = 15000;
+
+function getApiBase() {
   const base =
-    process.env.API_BASE ||
-    process.env.UPSTREAM_API_URL ||
+    process.env.API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    "https://crypto-ai-api-1-7cte.onrender.com";
+    process.env.NEXT_PUBLIC_API_BASE ||
+    "";
 
-  return String(base).replace(/\/$/, "");
-}
-
-export function addCors(headers, origin = "*") {
-  headers.set("access-control-allow-origin", origin);
-  headers.set("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  headers.set("access-control-allow-headers", "Content-Type, Authorization, X-Vault-Token");
-  headers.set("access-control-max-age", "86400");
-  return headers;
-}
-
-// If older UI builds ever used "/api/..." paths, strip the "/api" prefix
-// because the Render Node API serves routes at ROOT ("/status", "/settings", etc).
-export function rewriteLegacy(path) {
-  // Normalize
-  if (!path) return "/";
-
-  // Strip any accidental double slashes
-  path = path.replace(/\/{2,}/g, "/");
-
-  // Old builds sometimes requested "/api/<route>"
-  // New Render Node API expects "/<route>"
-  if (path.startsWith("/api/")) {
-    path = path.slice(4); // remove "/api"
-    if (!path.startsWith("/")) path = "/" + path;
+  if (!base) {
+    throw new Error(
+      "Missing API_URL (or NEXT_PUBLIC_API_URL). Set it to your Render base, e.g. https://crypto-ai-api-1-7cte.onrender.com"
+    );
   }
+  return base.replace(/\/+$/, "");
+}
 
-  // Keep your old vault pin aliases working
-  if (path === "/vault/set-pin") return "/vault/pin/set";
-  if (path === "/vault/use-pin") return "/vault/unlock";
+/**
+ * Legacy rewrite:
+ * Previously some backends served /data, /logs, /ohlc, /settings at ROOT and
+ * other endpoints under /api. With the new Node/Express backend, everything is ROOT.
+ *
+ * So: do NOT add "/api" to anything.
+ */
+export function rewriteLegacy(path) {
+  if (!path) return "/";
+  // Ensure leading slash
+  if (!path.startsWith("/")) path = "/" + path;
 
+  // If caller already included /api, keep it as-is (harmless for compatibility)
   return path;
 }
 
-function safeCloneHeaders(h) {
-  try {
-    return new Headers(h);
-  } catch {
-    // fallback if something weird arrives
-    const out = new Headers();
-    try {
-      for (const [k, v] of Object.entries(h || {})) out.set(k, String(v));
-    } catch {}
-    return out;
+function mergeHeaders(reqHeaders, extra = {}) {
+  const out = new Headers();
+
+  // Copy incoming headers except the ones that should not be forwarded
+  for (const [k, v] of reqHeaders.entries()) {
+    const key = k.toLowerCase();
+    if (
+      key === "host" ||
+      key === "connection" ||
+      key === "content-length" ||
+      key === "accept-encoding"
+    ) {
+      continue;
+    }
+    out.set(k, v);
   }
+
+  // Add/override extras
+  for (const [k, v] of Object.entries(extra)) {
+    if (v === undefined || v === null) continue;
+    out.set(k, String(v));
+  }
+
+  return out;
 }
 
+/**
+ * Core proxy fetch.
+ * @param {Request} req - Next.js route handler request
+ * @param {string} upstreamPath - path to hit on API_URL
+ */
 export async function proxyFetch(req, upstreamPath) {
-  const API_BASE = getApiBase();
-  const url = API_BASE + upstreamPath;
-
-  // Copy headers but remove ones that can break proxying
-  const headers = safeCloneHeaders(req.headers);
-  headers.delete("host");
-  headers.delete("content-length");
-
-  // Ensure JSON content-type for non-GET if missing
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    if (!headers.get("content-type")) {
-      headers.set("content-type", "application/json");
-    }
-  }
-
-  // Read body safely (prevents stream/duplex issues on Vercel)
-  let body;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    try {
-      const buf = await req.arrayBuffer();
-      if (buf && buf.byteLength > 0) body = buf;
-    } catch {
-      // ignore body read failure
-    }
-  }
+  const base = getApiBase();
+  const path = rewriteLegacy(upstreamPath);
+  const url = base + path;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-  let res;
   try {
-    res = await fetch(url, {
-      method: req.method,
-      headers,
-      body,
-      redirect: "manual",
-      cache: "no-store",
-      signal: controller.signal,
+    const method = req.method || "GET";
+
+    const headers = mergeHeaders(req.headers, {
+      // Helpful for server logs/debugging:
+      "x-forwarded-host": req.headers.get("host") || "",
     });
-  } catch (e) {
-    clearTimeout(timeout);
-    const errHeaders = addCors(
-      new Headers({ "content-type": "application/json" }),
-      req.headers.get("origin") || "*"
-    );
+
+    // Only pass a body for methods that allow one
+    const hasBody = !["GET", "HEAD"].includes(method.toUpperCase());
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: hasBody ? req.body : undefined,
+      redirect: "manual",
+      signal: controller.signal,
+      // Next.js edge/runtime safe:
+      cache: "no-store",
+    });
+
+    // We return the raw response body + status + headers
+    // but strip hop-by-hop headers.
+    const outHeaders = new Headers(res.headers);
+    outHeaders.delete("content-encoding");
+    outHeaders.delete("transfer-encoding");
+    outHeaders.delete("connection");
+
+    return new Response(res.body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: outHeaders,
+    });
+  } catch (err) {
+    const msg =
+      err?.name === "AbortError"
+        ? `Upstream timeout after ${DEFAULT_TIMEOUT_MS}ms`
+        : err?.message || String(err);
+
     return new Response(
-      JSON.stringify({ ok: false, error: "proxy_fetch_failed", detail: String(e) }),
-      { status: 502, headers: errHeaders }
+      JSON.stringify({
+        ok: false,
+        error: "proxy_error",
+        message: msg,
+      }),
+      {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      }
     );
   } finally {
     clearTimeout(timeout);
   }
-
-  const outHeaders = addCors(
-    new Headers(res.headers),
-    req.headers.get("origin") || "*"
-  );
-  return new Response(res.body, { status: res.status, headers: outHeaders });
 }
-// Convenience helpers used by route files
-export async function proxyGet(req, path) {
+
+/**
+ * Convenience helper used by some route files:
+ * - proxyGet("/settings") -> returns JSON
+ * - proxyGet(req, "/settings") -> returns Response passthrough
+ */
+export async function proxyGet(arg1, arg2) {
+  // Usage A: proxyGet("/logs") -> returns JSON
+  if (typeof arg1 === "string") {
+    const path = arg1;
+    const fakeReq = new Request("http://local" + path, { method: "GET" });
+    const res = await proxyFetch(fakeReq, path);
+    return await res.json();
+  }
+
+  // Usage B: proxyGet(req, "/settings") -> returns Response
+  const req = arg1;
+  const path = arg2;
   return proxyFetch(req, path);
 }
 
+/**
+ * Convenience helper used by some route files:
+ * - proxyPost(req, "/bankroll")
+ */
 export async function proxyPost(req, path) {
   return proxyFetch(req, path);
 }
