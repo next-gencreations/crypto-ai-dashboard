@@ -77,3 +77,20 @@ export async function proxyUpstream(req, path, method = "GET") {
     );
   }
 }
+// Compatibility export: some routes import proxyFetch
+export async function proxyFetch(arg1, arg2, arg3) {
+  // Style 1: proxyFetch(req, "/path", { method: "GET" })
+  if (arg1 && typeof arg1 === "object" && typeof arg2 === "string") {
+    const req = arg1;
+    const path = arg2;
+    const init = arg3 || {};
+    const method = (init.method || req?.method || "GET").toUpperCase();
+    return proxyUpstream(req, path, method);
+  }
+
+  // Style 2: proxyFetch("/path", { method: "GET" })
+  const path = String(arg1 || "/");
+  const init = arg2 || {};
+  const method = (init.method || "GET").toUpperCase();
+  return proxyUpstream(null, path, method);
+}
