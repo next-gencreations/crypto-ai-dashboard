@@ -1,5 +1,3 @@
-// app/api/proxy/_lib.js
-
 import { NextResponse } from "next/server";
 
 const API_BASE =
@@ -64,4 +62,14 @@ export async function proxyGet(req, path) {
 
 export async function proxyPost(req, path) {
   return proxyRequest(req, path, "POST");
+}
+
+// Added to fix "proxyFetch is not exported" build error
+export async function proxyFetch(req, path, method = "GET") {
+  return proxyRequest(req, path, method);
+}
+
+// Added to fix "rewriteLegacy is not exported" build error
+export function rewriteLegacy(path) {
+  return path;
 }
