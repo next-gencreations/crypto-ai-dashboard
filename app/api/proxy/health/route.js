@@ -1,9 +1,7 @@
-// app/api/proxy/health/route.js
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { proxyUpstream } from "../_lib";
 
-import { proxyGet } from "../_lib";
+export const runtime = "nodejs";
 
 export async function GET(req) {
-  return proxyGet(req, "/health");
+  return proxyUpstream(req, "/health", "GET");
 }
