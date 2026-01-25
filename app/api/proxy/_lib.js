@@ -94,3 +94,8 @@ export async function proxyFetch(arg1, arg2, arg3) {
   const method = (init.method || "GET").toUpperCase();
   return proxyUpstream(null, path, method);
 }
+// Compatibility export: some routes import proxyFetch
+export async function proxyFetch(req, path, init = {}) {
+  const method = (init?.method || "GET").toUpperCase();
+  return proxyUpstream(req, path, method);
+}
