@@ -1,10 +1,12 @@
 // app/api/proxy/route.js
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-import { proxyFetch } from "./_lib";
+import { proxyUpstream } from "./_lib";
 
 export async function GET(req) {
-  return proxyFetch(req, "/health");
+  return proxyUpstream(req, "/health", "GET");
 }
 
 export async function OPTIONS() {
