@@ -116,3 +116,11 @@ export async function proxyFetch(req, upstreamPath) {
   );
   return new Response(res.body, { status: res.status, headers: outHeaders });
 }
+// Convenience helpers used by route files
+export async function proxyGet(req, path) {
+  return proxyFetch(req, path);
+}
+
+export async function proxyPost(req, path) {
+  return proxyFetch(req, path);
+}
