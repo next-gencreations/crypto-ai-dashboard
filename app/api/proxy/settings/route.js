@@ -1,15 +1,11 @@
-// app/api/proxy/settings/route.js
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { proxyUpstream } from "../_lib";
 
-import { proxyGet, proxyPost } from "../_lib";
+export const runtime = "nodejs";
 
 export async function GET(req) {
-  // upstream: /settings
-  return proxyGet(req, "/settings");
+  return proxyUpstream(req, "/settings", "GET");
 }
 
 export async function POST(req) {
-  // upstream: /settings
-  return proxyPost(req, "/settings");
+  return proxyUpstream(req, "/settings", "POST");
 }
