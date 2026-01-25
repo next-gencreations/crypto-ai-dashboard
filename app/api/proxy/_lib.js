@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+// Upstream API base (Render)
 const API_BASE =
   process.env.CRYPTO_AI_API_URL ||
   process.env.API_URL ||
@@ -9,7 +10,7 @@ const API_BASE =
   "https://crypto-ai-api-1-7cte.onrender.com";
 
 /**
- * Map legacy short paths used by the UI to real backend endpoints
+ * Rewrite legacy / UI paths to real backend endpoints
  */
 export function rewriteLegacy(path) {
   if (!path) return "/";
@@ -17,39 +18,48 @@ export function rewriteLegacy(path) {
   let p = String(path);
   if (!p.startsWith("/")) p = `/${p}`;
 
-  // --- legacy shortcuts the UI often uses ---
+  // Shortcuts (if UI uses them)
   if (p === "/h") return "/health";
   if (p === "/v") return "/vault/status";
   if (p === "/s") return "/settings";
   if (p === "/d") return "/data";
-  if (p === "/c") return "/ohlc"; // candles shortcut (if used)
+  if (p === "/c") return "/ohlc";
   if (p === "/logs") return "/logs";
 
-  // also support these friendly legacy paths
+  // Friendly legacy paths
   if (p === "/crypto") return "/data";
   if (p === "/candles") return "/ohlc";
   if (p === "/vault") return "/vault/status";
+
+  // ✅ IMPORTANT FIX: UI calls /vault/pin/set but backend expects /vault/pin
+  if (p === "/vault/pin/set") return "/vault/pin";
 
   return p;
 }
 
 /**
- * Copy through headers the backend needs (Vault token especially)
+ * Pass through headers your backend needs (Vault token etc)
  */
 function buildHeaders(req) {
   const headers = {};
 
+  // Forward Vault token if present
   const vaultToken = req?.headers?.get?.("x-vault-token");
   if (vaultToken) headers["x-vault-token"] = vaultToken;
 
+  // Forward auth if present
   const auth = req?.headers?.get?.("authorization");
   if (auth) headers["authorization"] = auth;
+
+  // Forward content-type if present (for POSTs)
+  const ct = req?.headers?.get?.("content-type");
+  if (ct) headers["content-type"] = ct;
 
   return headers;
 }
 
 /**
- * Core proxy (always uses Node runtime)
+ * Core proxy request handler
  */
 async function proxyRequest(req, path, method = "GET") {
   const upstreamPath = rewriteLegacy(path);
@@ -67,18 +77,20 @@ async function proxyRequest(req, path, method = "GET") {
     // Only attach a body for non-GET/HEAD
     if (req && method !== "GET" && method !== "HEAD") {
       init.body = await req.text();
-      const ct = req.headers.get("content-type");
-      if (ct) init.headers["content-type"] = ct;
     }
 
     const res = await fetch(url, init);
     const text = await res.text();
-    const contentType = res.headers.get("content-type") || "application/json";
+
+    const contentType =
+      res.headers.get("content-type") || "application/json; charset=utf-8";
 
     return new NextResponse(text, {
       status: res.status,
       headers: {
         "Content-Type": contentType,
+
+        // Helpful CORS defaults (safe for now)
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers":
           "Content-Type, Authorization, X-Vault-Token",
@@ -106,9 +118,12 @@ export async function proxyPost(req, path) {
 }
 
 /**
- * ✅ IMPORTANT: proxyFetch must support BOTH calling styles
+ * ✅ IMPORTANT: proxyFetch supports BOTH calling styles:
+ *   proxyFetch("/data", { method: "GET" })
+ *   proxyFetch(req, "/data", { method: "GET" })
  */
 export async function proxyFetch(arg1, arg2, arg3) {
+  // Style A: proxyFetch("/path", init)
   if (typeof arg1 === "string") {
     const path = arg1;
     const init = arg2 || {};
@@ -116,6 +131,7 @@ export async function proxyFetch(arg1, arg2, arg3) {
     return proxyRequest(null, path, method);
   }
 
+  // Style B: proxyFetch(req, "/path", init)
   const req = arg1;
   const path = arg2;
   const init = arg3 || {};
