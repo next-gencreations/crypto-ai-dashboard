@@ -1,47 +1,49 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
+// Your backend (Render)
 const API_BASE =
   process.env.CRYPTO_AI_API_URL ||
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   "https://crypto-ai-api-1-7cte.onrender.com";
 
-/**
- * Optional legacy mapping (keep simple)
- */
+/** Optional: map short/legacy paths if your UI ever calls them */
 export function rewriteLegacy(path) {
   if (!path) return "/";
   let p = String(path);
   if (!p.startsWith("/")) p = `/${p}`;
+
+  if (p === "/h") return "/health";
+  if (p === "/v") return "/vault/status";
+  if (p === "/s") return "/settings";
+  if (p === "/d") return "/data";
+  if (p === "/c") return "/ohlc";
+  if (p === "/logs") return "/logs";
+
   return p;
 }
 
-/**
- * Copy through headers the backend needs
- */
 function buildHeaders(req) {
   const headers = {};
 
-  // Vault token can be passed from UI to API
+  // pass vault token through (case-insensitive in practice)
   const vaultToken = req?.headers?.get?.("x-vault-token");
   if (vaultToken) headers["x-vault-token"] = vaultToken;
 
+  // pass auth if you ever use it
   const auth = req?.headers?.get?.("authorization");
   if (auth) headers["authorization"] = auth;
 
+  // pass content-type for POST/PUT
   const ct = req?.headers?.get?.("content-type");
   if (ct) headers["content-type"] = ct;
 
   return headers;
 }
 
-/**
- * Core upstream proxy used by route files
- */
+/** Main upstream proxy helper */
 export async function proxyUpstream(req, path, method = "GET") {
   const upstreamPath = rewriteLegacy(path);
   const url = `${API_BASE}${upstreamPath}`;
@@ -53,24 +55,18 @@ export async function proxyUpstream(req, path, method = "GET") {
       cache: "no-store",
     };
 
-    // Only attach a body for non-GET/HEAD
     if (req && method !== "GET" && method !== "HEAD") {
       init.body = await req.text();
     }
 
     const res = await fetch(url, init);
     const text = await res.text();
-    const contentType = res.headers.get("content-type") || "application/json";
 
     return new NextResponse(text, {
       status: res.status,
       headers: {
-        "Content-Type": contentType,
-        // You can remove CORS headers if not needed
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers":
-          "Content-Type, Authorization, X-Vault-Token",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        "Content-Type": res.headers.get("content-type") || "application/json",
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {
@@ -80,19 +76,4 @@ export async function proxyUpstream(req, path, method = "GET") {
       { status: 500 }
     );
   }
-}
-
-/**
- * Backwards-compatible exports (in case other routes import these)
- */
-export async function proxyGet(req, path) {
-  return proxyUpstream(req, path, "GET");
-}
-
-export async function proxyPost(req, path) {
-  return proxyUpstream(req, path, "POST");
-}
-
-export async function proxyFetch(req, path, method = "GET") {
-  return proxyUpstream(req, path, method);
 }
