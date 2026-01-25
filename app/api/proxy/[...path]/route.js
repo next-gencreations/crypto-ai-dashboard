@@ -1,49 +1,59 @@
 // app/api/proxy/[...path]/route.js
-import { proxyFetch, rewriteLegacy } from "../_lib";
+import { proxyUpstream } from "../_lib";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic"; // IMPORTANT: no caching for proxy routes
 
-function buildUpstreamPath(ctx) {
-  const raw = "/" + ((ctx?.params?.path || []).join("/"));
-  return rewriteLegacy(raw);
+function joinPath(params) {
+  const parts = params?.path || [];
+  const p = "/" + parts.join("/");
+  return p;
 }
 
-async function forward(req, ctx) {
-  const upstreamPath = buildUpstreamPath(ctx);
-
-  // Ensure no caching between Vercel/Next layers
-  const headers = new Headers(req.headers);
-  headers.set("cache-control", "no-store");
-
-  // Recreate the Request so we can ensure headers are applied
-  const req2 = new Request(req.url, {
-    method: req.method,
-    headers,
-    body: ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer(),
-    redirect: "manual",
-  });
-
-  return proxyFetch(req2, upstreamPath);
+function withCors(res) {
+  const headers = new Headers(res.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Vault-Token");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  return new Response(res.body, { status: res.status, headers });
 }
 
-export async function GET(req, ctx) { return forward(req, ctx); }
-export async function POST(req, ctx) { return forward(req, ctx); }
-export async function PUT(req, ctx) { return forward(req, ctx); }
-export async function PATCH(req, ctx) { return forward(req, ctx); }
-export async function DELETE(req, ctx) { return forward(req, ctx); }
-
-// Better OPTIONS for browser preflight
-export async function OPTIONS(req) {
-  const origin = req.headers.get("origin") || "*";
+export async function OPTIONS() {
   return new Response(null, {
     status: 204,
     headers: {
-      "access-control-allow-origin": origin,
-      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "access-control-allow-headers": "Content-Type, Authorization",
-      "access-control-allow-credentials": "true",
-      "vary": "Origin",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vault-Token",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     },
   });
+}
+
+export async function GET(req, { params }) {
+  const path = joinPath(params);
+  const res = await proxyUpstream(req, path, "GET");
+  return withCors(res);
+}
+
+export async function POST(req, { params }) {
+  const path = joinPath(params);
+  const res = await proxyUpstream(req, path, "POST");
+  return withCors(res);
+}
+
+export async function PUT(req, { params }) {
+  const path = joinPath(params);
+  const res = await proxyUpstream(req, path, "PUT");
+  return withCors(res);
+}
+
+export async function PATCH(req, { params }) {
+  const path = joinPath(params);
+  const res = await proxyUpstream(req, path, "PATCH");
+  return withCors(res);
+}
+
+export async function DELETE(req, { params }) {
+  const path = joinPath(params);
+  const res = await proxyUpstream(req, path, "DELETE");
+  return withCors(res);
 }
