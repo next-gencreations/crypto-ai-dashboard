@@ -1,30 +1,41 @@
-import { proxyUpstream } from "../_lib";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
+
+import { proxyFetch } from "../_lib";
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "access-control-allow-headers": "*",
+  };
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
+}
 
 export async function GET(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyUpstream(req, path, "GET");
+  const upstreamPath = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, upstreamPath, "GET");
 }
 
 export async function POST(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyUpstream(req, path, "POST");
+  const upstreamPath = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, upstreamPath, "POST");
 }
 
 export async function PUT(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyUpstream(req, path, "PUT");
+  const upstreamPath = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, upstreamPath, "PUT");
 }
 
 export async function PATCH(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyUpstream(req, path, "PATCH");
+  const upstreamPath = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, upstreamPath, "PATCH");
 }
 
 export async function DELETE(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyUpstream(req, path, "DELETE");
+  const upstreamPath = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, upstreamPath, "DELETE");
 }
