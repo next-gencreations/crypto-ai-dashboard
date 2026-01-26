@@ -1,41 +1,42 @@
+// app/api/proxy/[...path]/route.js
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 import { proxyFetch } from "../_lib";
 
-function corsHeaders() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers": "*",
-  };
-}
-
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
-}
-
+// GET /api/proxy/<anything>
 export async function GET(req, { params }) {
-  const upstreamPath = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, upstreamPath, "GET");
+  const path = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, path);
 }
 
+// POST /api/proxy/<anything>
 export async function POST(req, { params }) {
-  const upstreamPath = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, upstreamPath, "POST");
+  const path = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, path);
 }
 
 export async function PUT(req, { params }) {
-  const upstreamPath = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, upstreamPath, "PUT");
+  const path = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, path);
 }
 
 export async function PATCH(req, { params }) {
-  const upstreamPath = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, upstreamPath, "PATCH");
+  const path = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, path);
 }
 
 export async function DELETE(req, { params }) {
-  const upstreamPath = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, upstreamPath, "DELETE");
+  const path = "/" + (params?.path || []).join("/");
+  return proxyFetch(req, path);
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "access-control-allow-headers": "*",
+    },
+  });
 }
