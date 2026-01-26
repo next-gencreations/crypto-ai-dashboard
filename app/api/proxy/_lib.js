@@ -1,142 +1,91 @@
-import { NextResponse } from "next/server";
+// app/api/proxy/_lib.js
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailers",
+  "transfer-encoding",
+  "upgrade",
+  "host",
+]);
 
-const API_BASE =
-  process.env.CRYPTO_AI_API_URL ||
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://crypto-ai-api-1-7cte.onrender.com";
+function getUpstreamBase() {
+  const base =
+    process.env.API_BASE ||
+    process.env.NEXT_PUBLIC_API_BASE ||
+    process.env.UPSTREAM_API_BASE ||
+    "";
 
-/**
- * Rewrite paths that the dashboard/UI uses into the REAL backend routes.
- * Key fix: /vault/pin/set  -> /vault/pin
- */
-export function rewriteLegacy(path) {
-  if (!path) return "/";
-
-  let p = String(path);
-  if (!p.startsWith("/")) p = `/${p}`;
-
-  // Shortcuts
-  if (p === "/h") return "/health";
-  if (p === "/v") return "/vault/status";
-  if (p === "/s") return "/settings";
-  if (p === "/d") return "/data";
-  if (p === "/c") return "/ohlc";
-  if (p === "/logs") return "/logs";
-
-  // Friendly aliases
-  if (p === "/crypto") return "/data";
-  if (p === "/candles") return "/ohlc";
-  if (p === "/vault") return "/vault/status";
-
-  // ✅ IMPORTANT FIX FOR PIN SET:
-  // UI sends /vault/pin/set but backend expects /vault/pin
-  if (p === "/vault/pin/set") return "/vault/pin";
-
-  return p;
-}
-
-function buildHeaders(req) {
-  const out = {};
-
-  // pass vault token through
-  const token =
-    req?.headers?.get?.("x-vault-token") || req?.headers?.get?.("X-Vault-Token");
-  if (token) out["x-vault-token"] = token;
-
-  const auth = req?.headers?.get?.("authorization");
-  if (auth) out["authorization"] = auth;
-
-  // preserve content-type for POST/PUT/PATCH if present
-  const ct = req?.headers?.get?.("content-type");
-  if (ct) out["content-type"] = ct;
-
-  return out;
-}
-
-function corsHeaders() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers":
-      "Content-Type, Authorization, X-Vault-Token, X-Requested-With",
-  };
-}
-
-/**
- * Main upstream proxy (Node runtime).
- */
-export async function proxyUpstream(req, path, method = "GET") {
-  const upstreamPath = rewriteLegacy(path);
-  const url = `${API_BASE}${upstreamPath}`;
-
-  try {
-    const init = {
-      method,
-      headers: {
-        ...buildHeaders(req),
-      },
-      cache: "no-store",
-    };
-
-    // only attach body for non-GET/HEAD
-    if (req && method !== "GET" && method !== "HEAD") {
-      init.body = await req.text();
-      // if no content-type came through, default to json
-      if (!init.headers["content-type"]) init.headers["content-type"] = "application/json";
-    }
-
-    const res = await fetch(url, init);
-    const text = await res.text();
-
-    return new NextResponse(text, {
-      status: res.status,
-      headers: {
-        "content-type": res.headers.get("content-type") || "application/json",
-        ...corsHeaders(),
-      },
-    });
-  } catch (err) {
-    console.error("proxyUpstream error:", err);
-    return NextResponse.json(
-      { ok: false, error: "Proxy failed", detail: String(err) },
-      { status: 500, headers: corsHeaders() }
+  if (!base) {
+    throw new Error(
+      "Missing API base URL. Set API_BASE (recommended) to https://crypto-ai-api-1-7cte.onrender.com"
     );
   }
+
+  return base.replace(/\/+$/, ""); // trim trailing slash
 }
 
-/**
- * Exports expected by your route files
- */
-export async function proxyGet(req, path) {
-  return proxyUpstream(req, path, "GET");
-}
+export async function proxyFetch(req, upstreamPath) {
+  const base = getUpstreamBase();
 
-export async function proxyPost(req, path) {
-  return proxyUpstream(req, path, "POST");
-}
+  // If route passed "/vault/status" keep it, if passed "vault/status" fix it
+  const p = (upstreamPath || "").startsWith("/")
+    ? upstreamPath
+    : "/" + (upstreamPath || "");
 
-/**
- * Some files import proxyFetch(req, "/path") so we provide it.
- * Also supports proxyFetch("/path", { method: "POST" }) style.
- */
-export async function proxyFetch(arg1, arg2, arg3) {
-  // proxyFetch("/health", { method: "GET" })
-  if (typeof arg1 === "string") {
-    const path = arg1;
-    const init = arg2 || {};
-    const method = (init.method || "GET").toUpperCase();
-    return proxyUpstream(null, path, method);
+  const url = new URL(base + p);
+
+  // Copy query string from incoming request
+  const inUrl = new URL(req.url);
+  inUrl.searchParams.forEach((v, k) => url.searchParams.set(k, v));
+
+  // Forward headers (including X-Vault-Token)
+  const headers = new Headers();
+  req.headers.forEach((value, key) => {
+    const k = key.toLowerCase();
+    if (!HOP_BY_HOP.has(k)) headers.set(key, value);
+  });
+
+  // Ensure JSON works nicely through proxy
+  if (!headers.has("accept")) headers.set("accept", "application/json");
+
+  // Forward body for non-GET/HEAD
+  let body = undefined;
+  const method = req.method || "GET";
+  if (method !== "GET" && method !== "HEAD") {
+    // IMPORTANT: use arrayBuffer so it works for json + anything else
+    const buf = await req.arrayBuffer();
+    body = buf.byteLength ? buf : undefined;
   }
 
-  // proxyFetch(req, "/health", { method: "GET" })
-  const req = arg1;
-  const path = arg2;
-  const init = arg3 || {};
-  const method = (init.method || req?.method || "GET").toUpperCase();
-  return proxyUpstream(req, path, method);
+  const upstreamRes = await fetch(url.toString(), {
+    method,
+    headers,
+    body,
+    redirect: "manual",
+  });
+
+  // Copy response headers back (but avoid hop-by-hop)
+  const outHeaders = new Headers();
+  upstreamRes.headers.forEach((value, key) => {
+    const k = key.toLowerCase();
+    if (!HOP_BY_HOP.has(k)) outHeaders.set(key, value);
+  });
+
+  // Add permissive CORS (safe for your dashboard)
+  outHeaders.set("access-control-allow-origin", "*");
+  outHeaders.set(
+    "access-control-allow-methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+  );
+  outHeaders.set("access-control-allow-headers", "*");
+
+  const resBody = await upstreamRes.arrayBuffer();
+  return new Response(resBody, {
+    status: upstreamRes.status,
+    headers: outHeaders,
+  });
 }
