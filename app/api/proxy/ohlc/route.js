@@ -1,53 +1,91 @@
-import requests
-from fastapi import APIRouter, Query
+// app/api/proxy/ohlc/route.js
+import { NextResponse } from "next/server";
 
-router = APIRouter()
+const COINBASE = "https://api.exchange.coinbase.com";
 
-COINBASE_URL = "https://api.exchange.coinbase.com"
+function mapTfToGranularity(tf) {
+  const s = String(tf || "").trim().toLowerCase();
 
-@router.get("/ohlc")
-def get_ohlc(
-    market: str = Query("BTC-USD"),
-    tf: str = Query("60")  # seconds
-):
-    """
-    Coinbase candle sizes:
-    60, 300, 900, 3600, 21600, 86400
-    """
+  // allow numeric seconds too
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    if ([60, 300, 900, 3600, 21600, 86400].includes(n)) return n;
+  }
 
-    granularity = int(tf)
+  // accept "1m/5m/15m/1h/6h/1d"
+  const map = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "1h": 3600,
+    "6h": 21600,
+    "1d": 86400,
+  };
 
-    url = f"{COINBASE_URL}/products/{market}/candles"
-    params = {"granularity": granularity}
+  return map[s] || 300;
+}
 
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+  const market = (searchParams.get("market") || "BTC-USD").toUpperCase();
+  const tf = searchParams.get("tf") || "5m";
+  const granularity = mapTfToGranularity(tf);
 
-        candles = [
-            {
-                "time": c[0],
-                "low": c[1],
-                "high": c[2],
-                "open": c[3],
-                "close": c[4],
-                "volume": c[5],
-            }
-            for c in data
-        ]
+  const url = new URL(`${COINBASE}/products/${market}/candles`);
+  url.searchParams.set("granularity", String(granularity));
 
-        return {
-            "ok": True,
-            "source": "coinbase",
-            "market": market,
-            "tf": granularity,
-            "candles": candles
-        }
+  try {
+    const r = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "crypto-ai-dashboard",
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
 
-    except Exception as e:
-        return {
-            "ok": False,
-            "error": "coinbase_failed",
-            "detail": str(e)
-        }
+    if (!r.ok) {
+      const text = await r.text();
+      return NextResponse.json({
+        ok: false,
+        source: "coinbase",
+        market,
+        tf,
+        granularity,
+        error: `Coinbase returned ${r.status}`,
+        details: text?.slice(0, 500),
+      });
+    }
+
+    const raw = await r.json();
+    // Coinbase candles: [ time, low, high, open, close, volume ]
+    const candles = (raw || [])
+      .map((c) => ({
+        t: c[0],
+        o: c[3],
+        h: c[2],
+        l: c[1],
+        c: c[4],
+        v: c[5],
+      }))
+      .sort((a, b) => a.t - b.t);
+
+    return NextResponse.json({
+      ok: true,
+      source: "coinbase",
+      market,
+      tf,
+      granularity,
+      time_utc: new Date().toISOString(),
+      candles,
+    });
+  } catch (e) {
+    return NextResponse.json({
+      ok: false,
+      source: "coinbase",
+      market,
+      tf,
+      granularity,
+      error: String(e?.message || e),
+    });
+  }
+}
