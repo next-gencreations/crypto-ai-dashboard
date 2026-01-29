@@ -1,85 +1,99 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
-function TradingViewEmbed({ symbol = "BINANCE:BTCUSDT", interval = "5" }) {
-  const src =
-    "https://s.tradingview.com/widgetembed/?" +
-    new URLSearchParams({
+function tvInterval(tf) {
+  const map = { "1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D" };
+  return map[tf] || "5";
+}
+
+function TradingViewEmbed({ symbol, tf }) {
+  const interval = tvInterval(tf);
+
+  const src = useMemo(() => {
+    const params = new URLSearchParams({
       symbol,
       interval,
       theme: "dark",
       style: "1",
       locale: "en",
-      toolbarbg: "#06110a",
+      toolbarbg: "#1f2937",
       enable_publishing: "false",
-      hide_side_toolbar: "false",
-      allow_symbol_change: "true",
-      save_image: "false",
-      studies: "",
-    }).toString();
+      hide_top_toolbar: "false",
+      hide_legend: "false",
+      saveimage: "false",
+      container_id: "tv_chart",
+    });
+    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
+  }, [symbol, interval]);
 
   return (
-    <div className="pip-chartwrap" style={{ padding: 0, overflow: "hidden" }}>
+    <div style={{ width: "100%", height: "560px", borderRadius: 16, overflow: "hidden" }}>
       <iframe
         title="TradingView"
         src={src}
-        style={{ width: "100%", height: 560, border: 0, display: "block" }}
-        loading="lazy"
-        referrerPolicy="no-referrer"
+        style={{ width: "100%", height: "100%", border: "0" }}
+        allowFullScreen
       />
     </div>
   );
 }
 
 export default function CryptoPage() {
-  const [symbol, setSymbol] = useState("BINANCE:BTCUSDT");
-  const [tf, setTf] = useState("5");
+  const SYMBOLS = [
+    { label: "BTC", symbol: "COINBASE:BTCUSD" },
+    { label: "ETH", symbol: "COINBASE:ETHUSD" },
+    { label: "SOL", symbol: "COINBASE:SOLUSD" },
+  ];
 
-  const title = useMemo(() => `CRYPTO CHART · ${symbol} · ${tf}`, [symbol, tf]);
+  const TFS = ["1m", "5m", "15m", "1h", "4h", "1d"];
+
+  const [sym, setSym] = useState(SYMBOLS[0].symbol);
+  const [tf, setTf] = useState("5m");
 
   return (
-    <div className="pip-crt">
-      <div className="pip-shell">
-        <div className="pip-topbar">
-          <div>
-            <div className="pip-title">PIP-TRADE 3000</div>
-            <div className="pip-sub wrap">{title}</div>
-          </div>
-        </div>
+    <div style={{ padding: 16 }}>
+      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>Crypto</h1>
 
-        <div className="pip-links">
-          <Link className="pip-link" href="/">HOME</Link>
-          <Link className="pip-link" href="/candles">CANDLES</Link>
-          <Link className="pip-link active" href="/crypto">CRYPTO</Link>
-        </div>
-
-        <div className="pip-content">
-          <div className="pip-panel">
-            <div className="pip-heading">TRADINGVIEW</div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-              <span className="pip-muted">Symbol:</span>
-              <button className={`pip-tab ${symbol === "BINANCE:BTCUSDT" ? "active" : ""}`} onClick={() => setSymbol("BINANCE:BTCUSDT")}>BTC</button>
-              <button className={`pip-tab ${symbol === "BINANCE:ETHUSDT" ? "active" : ""}`} onClick={() => setSymbol("BINANCE:ETHUSDT")}>ETH</button>
-              <button className={`pip-tab ${symbol === "BINANCE:SOLUSDT" ? "active" : ""}`} onClick={() => setSymbol("BINANCE:SOLUSDT")}>SOL</button>
-
-              <span className="pip-muted" style={{ marginLeft: 10 }}>TF:</span>
-              <button className={`pip-tab ${tf === "1" ? "active" : ""}`} onClick={() => setTf("1")}>1M</button>
-              <button className={`pip-tab ${tf === "5" ? "active" : ""}`} onClick={() => setTf("5")}>5M</button>
-              <button className={`pip-tab ${tf === "15" ? "active" : ""}`} onClick={() => setTf("15")}>15M</button>
-              <button className={`pip-tab ${tf === "60" ? "active" : ""}`} onClick={() => setTf("60")}>1H</button>
-            </div>
-
-            <TradingViewEmbed symbol={symbol} interval={tf} />
-
-            <div className="pip-muted" style={{ marginTop: 10 }}>
-              External chart is TradingView iframe. Your bot candles are on the Candles page.
-            </div>
-          </div>
-        </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {SYMBOLS.map((s) => (
+          <button
+            key={s.symbol}
+            onClick={() => setSym(s.symbol)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 12,
+              border: "1px solid #374151",
+              background: sym === s.symbol ? "#111827" : "#0b1220",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {TFS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTf(t)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 12,
+              border: "1px solid #374151",
+              background: tf === t ? "#111827" : "#0b1220",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <TradingViewEmbed symbol={sym} tf={tf} />
     </div>
   );
 }
