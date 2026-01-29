@@ -1,154 +1,143 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
-function clampNum(v, lo, hi, d = v) {
-  const n = Number(v);
-  const x = Number.isFinite(n) ? n : Number(d);
-  return Math.max(lo, Math.min(hi, x));
-}
-
-async function fetchJson(url, signal) {
-  const res = await fetch(url, { signal, cache: "no-store" });
-  const text = await res.text();
-  let data = null;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = text;
-  }
-  if (!res.ok) {
-    const e = new Error("fetchJson failed");
-    e.status = res.status;
-    e.data = data;
-    throw e;
-  }
-  return data;
+function fmt(n) {
+  if (n === null || n === undefined) return "-";
+  const x = Number(n);
+  if (Number.isNaN(x)) return String(n);
+  return x.toFixed(2);
 }
 
 export default function CandlesPage() {
-  const [market, setMarket] = useState("BTCUSDT");
-  const [tf, setTf] = useState("1m");
+  const MARKETS = ["BTC-USD", "ETH-USD", "SOL-USD"];
+  const TFS = ["1m", "5m", "15m", "1h", "6h", "1d"];
 
-  const [ohlc, setOhlc] = useState([]);
-  const [last, setLast] = useState("");
+  const [market, setMarket] = useState("BTC-USD");
+  const [tf, setTf] = useState("5m");
+  const [data, setData] = useState(null);
   const [err, setErr] = useState("");
-  const [ohlcBlocked, setOhlcBlocked] = useState(false);
 
-  const refreshMs = 5000;
-
-  const ohlcUrl = useMemo(() => {
-    return `/api/proxy/ohlc?market=${encodeURIComponent(market)}&tf=${encodeURIComponent(tf)}`;
-  }, [market, tf]);
+  async function load() {
+    setErr("");
+    try {
+      const r = await fetch(`/api/proxy/ohlc?market=${encodeURIComponent(market)}&tf=${encodeURIComponent(tf)}`, {
+        cache: "no-store",
+      });
+      const j = await r.json();
+      setData(j);
+      if (!j.ok) setErr(j.error || "Failed to load candles");
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
 
   useEffect(() => {
-    const ac = new AbortController();
-    let alive = true;
-
-    async function fetchAll(signal) {
-      try {
-        setErr("");
-        setOhlcBlocked(false);
-
-        const data = await fetchJson(ohlcUrl, signal);
-
-        // expected: { ok:true, candles:[...], time_utc:"..." }
-        const candles = Array.isArray(data?.candles) ? data.candles : [];
-        setOhlc(candles);
-        setLast(String(data?.time_utc || ""));
-      } catch (e) {
-        const status = e?.status || 0;
-        const text = e?.data || e?.message || String(e);
-        const lower = String(text).toLowerCase();
-
-        // Binance restriction (451 / "restricted location")
-        if (
-          lower.includes("binance_failed") ||
-          lower.includes("restricted location") ||
-          String(status) === "451" ||
-          String(text).includes('status":451')
-        ) {
-          setOhlcBlocked(true);
-          setOhlc([]);
-          setErr(`Candles feed blocked (Binance restriction). Showing TradingView only.`);
-        } else {
-          setErr(`API ${status} — ${text}`);
-        }
-      }
-    }
-
-    fetchAll(ac.signal);
-
-    const t = setInterval(() => {
-      if (!alive) return;
-      fetchAll(ac.signal);
-    }, refreshMs);
-
-    return () => {
-      alive = false;
-      clearInterval(t);
-      ac.abort();
-    };
-  }, [ohlcUrl]);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [market, tf]);
 
   return (
-    <div style={{ padding: 18 }}>
-      <div style={{ marginBottom: 12, opacity: 0.9 }}>
-        <div style={{ fontSize: 32, letterSpacing: 4, fontFamily: "monospace" }}>PIP-TRADE 3000</div>
-        <div style={{ fontFamily: "monospace", opacity: 0.8 }}>
-          Candles page · API: /api/proxy · Refresh: 5s · Last: {last || "—"}
-        </div>
+    <div style={{ padding: 16 }}>
+      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>Candles (Coinbase)</h1>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {MARKETS.map((m) => (
+          <button
+            key={m}
+            onClick={() => setMarket(m)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 12,
+              border: "1px solid #374151",
+              background: market === m ? "#111827" : "#0b1220",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            {m}
+          </button>
+        ))}
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        <button onClick={() => setMarket("BTCUSDT")}>BTC</button>
-        <button onClick={() => setMarket("ETHUSDT")}>ETH</button>
-        <button onClick={() => setMarket("SOLUSDT")}>SOL</button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {TFS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTf(t)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 12,
+              border: "1px solid #374151",
+              background: tf === t ? "#111827" : "#0b1220",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            {t}
+          </button>
+        ))}
 
-        <span style={{ marginLeft: 12, fontFamily: "monospace" }}>TF:</span>
-        <button onClick={() => setTf("1m")}>1M</button>
-        <button onClick={() => setTf("5m")}>5M</button>
-        <button onClick={() => setTf("15m")}>15M</button>
-        <button onClick={() => setTf("1h")}>1H</button>
+        <button
+          onClick={load}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 12,
+            border: "1px solid #374151",
+            background: "#0b1220",
+            color: "white",
+            cursor: "pointer",
+            marginLeft: 8,
+          }}
+        >
+          Refresh
+        </button>
       </div>
 
       {err ? (
-        <div style={{ padding: 12, marginBottom: 12, border: "1px solid rgba(0,255,160,0.25)", borderRadius: 12 }}>
-          <div style={{ fontFamily: "monospace", color: "rgba(0,255,160,0.9)" }}>{err}</div>
+        <div style={{ padding: 12, border: "1px solid #7f1d1d", borderRadius: 12, background: "#1f0b0b", color: "#fecaca" }}>
+          {err}
         </div>
       ) : null}
 
-      {/* Always show TradingView as the reliable view */}
-      <div style={{ padding: 12, border: "1px solid rgba(0,255,160,0.18)", borderRadius: 14, marginBottom: 14 }}>
-        <div style={{ fontFamily: "monospace", marginBottom: 10, opacity: 0.85 }}>
-          TRADINGVIEW (reliable) — {market} · {tf}
-        </div>
-        <iframe
-          title="TradingView"
-          style={{ width: "100%", height: 520, border: "0", borderRadius: 12 }}
-          src={`https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(
-            market
-          )}&interval=${encodeURIComponent(tf)}&hidesidetoolbar=1&symboledit=1&saveimage=0&toolbarbg=rgba(0,0,0,0.35)&studies=[]&theme=dark`}
-        />
-      </div>
-
-      {/* Optional: your API candles (only when not blocked) */}
-      <div style={{ padding: 12, border: "1px solid rgba(0,255,160,0.12)", borderRadius: 14 }}>
-        <div style={{ fontFamily: "monospace", marginBottom: 10, opacity: 0.85 }}>
-          PRICE CANDLES ({market}) · {tf}
+      <div style={{ marginTop: 12, padding: 12, borderRadius: 16, border: "1px solid #1f2937", background: "#0b1220", color: "white" }}>
+        <div style={{ opacity: 0.8, marginBottom: 8 }}>
+          Source: {data?.source || "-"} | Market: {market} | TF: {tf}
         </div>
 
-        {ohlcBlocked ? (
-          <div style={{ fontFamily: "monospace", opacity: 0.8 }}>
-            CANDLES FEED BLOCKED — USING TRADINGVIEW
-          </div>
-        ) : ohlc.length === 0 ? (
-          <div style={{ fontFamily: "monospace", opacity: 0.8 }}>NO CANDLES YET</div>
-        ) : (
-          <pre style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
-            {JSON.stringify(ohlc.slice(-25), null, 2)}
-          </pre>
-        )}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #1f2937" }}>
+                <th style={{ padding: 8 }}>Time (UTC)</th>
+                <th style={{ padding: 8 }}>Open</th>
+                <th style={{ padding: 8 }}>High</th>
+                <th style={{ padding: 8 }}>Low</th>
+                <th style={{ padding: 8 }}>Close</th>
+                <th style={{ padding: 8 }}>Vol</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.candles || []).slice(-60).reverse().map((c) => (
+                <tr key={c.t} style={{ borderBottom: "1px solid #111827" }}>
+                  <td style={{ padding: 8 }}>{new Date(c.t * 1000).toISOString()}</td>
+                  <td style={{ padding: 8 }}>{fmt(c.o)}</td>
+                  <td style={{ padding: 8 }}>{fmt(c.h)}</td>
+                  <td style={{ padding: 8 }}>{fmt(c.l)}</td>
+                  <td style={{ padding: 8 }}>{fmt(c.c)}</td>
+                  <td style={{ padding: 8 }}>{fmt(c.v)}</td>
+                </tr>
+              ))}
+              {!data?.candles?.length ? (
+                <tr>
+                  <td style={{ padding: 10, opacity: 0.7 }} colSpan={6}>
+                    No candles loaded yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
