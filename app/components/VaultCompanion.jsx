@@ -1,6 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+
+/**
+ * VaultCompanion.jsx (stable)
+ * - Stops "cycling" unless state actually changes.
+ * - Mood/stage/health drive the portrait (PNL does NOT).
+ * - Robust onError fallback through candidate filenames.
+ *
+ * NOTE: your filenames really include two dots before .png (..png) so we keep that.
+ */
 
 export default function VaultCompanion({
   sex = "girl",
@@ -8,52 +17,49 @@ export default function VaultCompanion({
   stage = "cryo",
   vaultNumber = "13",
   health = 100,
+  hunger = 100,
+  growth = 0,
   openPositions = 0,
   lastPnl = 0,
   isTrading = false,
   showDebugTag = false,
 }) {
   const H = clampNum(health, 0, 100, 100);
-  const POS = num(openPositions, 0);
-  const PNL = num(lastPnl, 0);
-  const TRADING = !!isTrading;
+  const HU = clampNum(hunger, 0, 100, 100);
 
-  // "vaultboy" or "vaultgirl"
   const baseKey = useMemo(() => {
     return String(sex || "girl").toLowerCase().includes("boy") ? "vaultboy" : "vaultgirl";
   }, [sex]);
 
-  // ✅ /public/companion/vaultgirl and /public/companion/vaultboy
   const folder = useMemo(() => `/companion/${baseKey}`, [baseKey]);
 
-  // ✅ Map current bot state to one of your 8 images
+  // Only mood/stage/health drive the portrait (stable, no PNL flicker).
   const portraitState = useMemo(() => {
     const m = String(mood || "").toLowerCase();
     const s = String(stage || "").toLowerCase();
 
-    // Super low health states (match your filenames)
-    if (H <= 5) return "zombie";  // *_zombie..png
-    if (H <= 20) return "zomple"; // *_zomple..png
+    // Critical health states (match your filenames)
+    if (H <= 5) return "zombie";
+    if (H <= 20) return "zomple";
 
-    // Cryo has priority
+    // Cryo priority
     if (s.includes("cryo") || m.includes("cryo")) return "cryo";
 
-    // Mood overrides
+    // Mood priority
     if (m.includes("sick")) return "sick";
     if (m.includes("weak") || m.includes("tired") || m.includes("low")) return "weak";
     if (m.includes("happy")) return "happy";
     if (m.includes("thriv") || m.includes("strong") || m.includes("great")) return "thriving";
 
-    // Health-based fallback
+    // Hunger can soften the mood a bit (optional)
+    if (HU < 35) return "weak";
+
+    // Health fallback
     if (H < 35) return "sick";
     if (H < 60) return "weak";
 
-    // Trading reaction fallback
-    if (TRADING && PNL > 0) return "thriving";
-    if (TRADING && PNL < 0) return "weak";
-
     return "idle";
-  }, [mood, stage, H, TRADING, PNL]);
+  }, [mood, stage, H, HU]);
 
   const ringState = useMemo(() => {
     const s = String(stage || "").toLowerCase();
@@ -67,39 +73,16 @@ export default function VaultCompanion({
 
   const statusText = useMemo(() => {
     if (H <= 5) return "OFFLINE";
-    if (!TRADING) return "IDLE";
-    if (PNL > 0) return "TRADING · PROFIT";
-    if (PNL < 0) return "TRADING · LOSS";
+    if (!isTrading) return "IDLE";
     return "TRADING · ACTIVE";
-  }, [TRADING, PNL, H]);
+  }, [isTrading, H]);
 
-  const pulseSpeed = useMemo(() => {
-    const base = TRADING ? 1.15 : 1.9;
-    const posAdj = Math.min(0.6, POS * 0.06);
-    return Math.max(0.8, base - posAdj);
-  }, [TRADING, POS]);
-
-  const glowMul = useMemo(() => {
-    const h = H / 100;
-    const base = 0.55 + h * 0.55;
-    const tradeBoost = TRADING ? 0.25 : 0;
-    return clampNum(base + tradeBoost, 0.5, 1.35, 0.95);
-  }, [H, TRADING]);
-
-  const accentStroke =
-    PNL < 0 ? "var(--pip-down, rgba(255,80,80,0.95))" : "var(--pip-up, rgba(0,255,160,0.95))";
-  const accentFill =
-    PNL < 0
-      ? "var(--pip-down-fill, rgba(255,80,80,0.18))"
-      : "var(--pip-up-fill, rgba(0,255,160,0.18))";
-
-  // ✅ IMPORTANT: your files really are "..png" and we keep them!
-  // ✅ Extra fallback so it's harder to "IMAGE NOT FOUND"
+  // IMPORTANT: keep the "..png" filenames
   const candidates = useMemo(() => {
     const primary = `${folder}/${baseKey}_${portraitState}..png`;
     const idle = `${folder}/${baseKey}_idle..png`;
 
-    // If zombie missing but zomple exists (or vice versa) try both
+    // If one "dead" variant missing, try the other
     const altDead =
       portraitState === "zombie"
         ? `${folder}/${baseKey}_zomple..png`
@@ -114,42 +97,22 @@ export default function VaultCompanion({
     return Array.from(new Set(list.filter(Boolean)));
   }, [folder, baseKey, portraitState]);
 
-  const [resolvedSrc, setResolvedSrc] = useState("");
+  // Deterministic version string (avoid Date.now() causing constant reloads)
+  const ASSET_V = "1";
 
-  useEffect(() => {
-    let cancelled = false;
-    const bust = `v=${Date.now()}`;
+  // Simple fallback index (no async preloader loops)
+  const [idx, setIdx] = useState(0);
+  const src = candidates[idx] ? `${candidates[idx]}?v=${ASSET_V}` : "";
 
-    const tryLoad = async () => {
-      for (const raw of candidates) {
-        const src = raw.includes("?") ? `${raw}&${bust}` : `${raw}?${bust}`;
-        const ok = await new Promise((res) => {
-          const im = new Image();
-          im.onload = () => res(true);
-          im.onerror = () => res(false);
-          im.src = src;
-        });
-        if (cancelled) return;
-        if (ok) {
-          setResolvedSrc(src);
-          return;
-        }
-      }
-      setResolvedSrc("");
-    };
-
-    tryLoad();
-    return () => {
-      cancelled = true;
-    };
-  }, [candidates]);
+  const accentStroke =
+    Number(lastPnl) < 0 ? "var(--pip-down, rgba(255,80,80,0.95))" : "var(--pip-up, rgba(0,255,160,0.95))";
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <svg viewBox="0 0 520 520" width="100%" height="100%" role="img" aria-label="Vault companion hologram">
         <defs>
           <filter id="pipGlow" x="-45%" y="-45%" width="190%" height="190%">
-            <feGaussianBlur stdDeviation={8 * glowMul} result="blur" />
+            <feGaussianBlur stdDeviation={8} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -218,20 +181,12 @@ export default function VaultCompanion({
         </g>
 
         <g clipPath="url(#portraitClip)">
-          <rect
-            x="70"
-            y="96"
-            width="380"
-            height="350"
-            rx="22"
-            fill="rgba(0,0,0,0.12)"
-            stroke="rgba(120,255,170,0.18)"
-          />
+          <rect x="70" y="96" width="380" height="350" rx="22" fill="rgba(0,0,0,0.12)" stroke="rgba(120,255,170,0.18)" />
           <circle cx="260" cy="250" r="170" fill="url(#holoAura)" opacity="0.95" />
 
-          {resolvedSrc ? (
+          {src ? (
             <image
-              href={resolvedSrc}
+              href={src}
               x="70"
               y="96"
               width="380"
@@ -239,6 +194,7 @@ export default function VaultCompanion({
               preserveAspectRatio="xMidYMid meet"
               filter="url(#holoTint)"
               opacity="0.98"
+              onError={() => setIdx((n) => Math.min(n + 1, candidates.length - 1))}
             />
           ) : (
             <text x="260" y="250" textAnchor="middle" fill="rgba(170,255,210,0.75)" fontSize="14">
@@ -253,7 +209,7 @@ export default function VaultCompanion({
 
         {showDebugTag && (
           <text x="58" y="496" fontSize="11" fill="rgba(120,255,170,0.75)" letterSpacing="2">
-            sex={baseKey} state={portraitState} src={resolvedSrc ? "OK" : "FAIL"} file={resolvedSrc || "-"}
+            sex={baseKey} state={portraitState} src={src ? "OK" : "FAIL"} file={src || "-"} stroke={accentStroke}
           </text>
         )}
       </svg>
