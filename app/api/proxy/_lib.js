@@ -21,42 +21,39 @@ function getUpstreamBase() {
 
   if (!base) {
     throw new Error(
-      "Missing API base URL. Set API_BASE (recommended) to https://crypto-ai-api-1-7cte.onrender.com"
+      "Missing API base URL. Set API_BASE to https://crypto-ai-api-1-7cte.onrender.com"
     );
   }
 
-  return base.replace(/\/+$/, ""); // trim trailing slash
+  return base.replace(/\/+$/, "");
 }
 
 export async function proxyFetch(req, upstreamPath) {
   const base = getUpstreamBase();
 
-  // If route passed "/vault/status" keep it, if passed "vault/status" fix it
   const p = (upstreamPath || "").startsWith("/")
     ? upstreamPath
     : "/" + (upstreamPath || "");
 
   const url = new URL(base + p);
 
-  // Copy query string from incoming request
+  // forward query params
   const inUrl = new URL(req.url);
   inUrl.searchParams.forEach((v, k) => url.searchParams.set(k, v));
 
-  // Forward headers (including X-Vault-Token)
+  // forward headers (incl X-Vault-Token)
   const headers = new Headers();
   req.headers.forEach((value, key) => {
     const k = key.toLowerCase();
     if (!HOP_BY_HOP.has(k)) headers.set(key, value);
   });
 
-  // Ensure JSON works nicely through proxy
   if (!headers.has("accept")) headers.set("accept", "application/json");
 
-  // Forward body for non-GET/HEAD
+  // forward body for non-GET/HEAD
   let body = undefined;
   const method = req.method || "GET";
   if (method !== "GET" && method !== "HEAD") {
-    // IMPORTANT: use arrayBuffer so it works for json + anything else
     const buf = await req.arrayBuffer();
     body = buf.byteLength ? buf : undefined;
   }
@@ -68,14 +65,12 @@ export async function proxyFetch(req, upstreamPath) {
     redirect: "manual",
   });
 
-  // Copy response headers back (but avoid hop-by-hop)
   const outHeaders = new Headers();
   upstreamRes.headers.forEach((value, key) => {
     const k = key.toLowerCase();
     if (!HOP_BY_HOP.has(k)) outHeaders.set(key, value);
   });
 
-  // Add permissive CORS (safe for your dashboard)
   outHeaders.set("access-control-allow-origin", "*");
   outHeaders.set(
     "access-control-allow-methods",
@@ -88,4 +83,9 @@ export async function proxyFetch(req, upstreamPath) {
     status: upstreamRes.status,
     headers: outHeaders,
   });
+}
+
+// Some routes import proxyUpstream. Keep it as an alias.
+export async function proxyUpstream(req, upstreamPath) {
+  return proxyFetch(req, upstreamPath);
 }
