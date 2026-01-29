@@ -251,7 +251,21 @@ export default function HomePage() {
       try {
         const logs = await fetchJson(logsUrl, signal);
         const lines = Array.isArray(logs) ? logs : logs?.lines || [];
-        setLogLines(Array.isArray(lines) ? lines.slice(-120) : []);
+        const safeLines = (Array.isArray(lines) ? lines.slice(-120) : []).map((l) => {
+  if (typeof l === "string") return l;
+  if (!l || typeof l !== "object") return String(l);
+
+  const t = l.t || l.time_utc || l.ts || "";
+  const level = l.level ? String(l.level).toUpperCase() : "";
+  const msg = l.msg || l.message || "";
+  const rest = { ...l };
+  delete rest.t; delete rest.time_utc; delete rest.ts; delete rest.level; delete rest.msg; delete rest.message;
+
+  const extras = Object.keys(rest).length ? " " + JSON.stringify(rest) : "";
+  return `${t} ${level ? "[" + level + "] " : ""}${msg}${extras}`.trim();
+});
+
+setLogLines(safeLines);
       } catch {
         setLogLines([]);
       }
