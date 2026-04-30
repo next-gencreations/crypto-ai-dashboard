@@ -1,23 +1,36 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-import { proxyUpstream } from "../../../../_lib";
-
 export async function POST(req) {
-  // UI calls /vault/pin/set
-  // _lib.js rewriteLegacy will convert it to /vault/pin on the backend
-  return proxyUpstream(req, "/vault/pin/set", "POST");
-}
+  try {
+    const body = await req.json().catch(() => ({}));
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "access-control-allow-headers":
-        "Content-Type, Authorization, X-Vault-Token, X-Requested-With",
-    },
-  });
+    const apiBase =
+      process.env.API_BASE ||
+      process.env.UPSTREAM_API_BASE ||
+      process.env.NEXT_PUBLIC_API_BASE;
+
+    if (!apiBase) {
+      return Response.json(
+        { ok: false, error: "Missing API_BASE env var" },
+        { status: 500 }
+      );
+    }
+
+    const upstream = await fetch(`${apiBase}/vault/pin/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const text = await upstream.text();
+
+    return new Response(text, {
+      status: upstream.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    return Response.json(
+      { ok: false, error: String(err?.message || err) },
+      { status: 500 }
+    );
+  }
 }
