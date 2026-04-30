@@ -1,12 +1,28 @@
 "use client";
 
-function moodFromData(pnl, positions) {
-  if (positions > 0) return "thriving";
-  if (pnl > 5) return "happy";
-  if (pnl > 0) return "idle";
-  if (pnl < -10) return "zombie";
-  if (pnl < -3) return "sick";
-  if (pnl < 0) return "weak";
+import { useEffect, useState } from "react";
+
+function getMood({ pnl, positions, lossStreak, secondsAgo }) {
+  // 📴 DEAD CONNECTION
+  if (secondsAgo > 30) return "offline";
+
+  // 🚨 CRITICAL LOSS
+  if (pnl < -15) return "cryo";
+
+  // ⚠️ LOSING
+  if (pnl < -5) return "sick";
+
+  // 😟 SMALL LOSS
+  if (pnl < 0) return "worried";
+
+  // 🔥 ACTIVE TRADE
+  if (positions > 0) return "active";
+
+  // 😄 GOOD PROFIT
+  if (pnl > 10) return "happy";
+
+  if (pnl > 0) return "calm";
+
   return "idle";
 }
 
@@ -14,10 +30,30 @@ export default function VaultCompanion({
   pnlToday = 0,
   equity = 0,
   openPositions = 0,
+  lossStreak = 0,
+  secondsAgo = 0
 }) {
-  const mood = moodFromData(pnlToday, openPositions);
+  const [displayMood, setDisplayMood] = useState("idle");
 
-  const img = `/companion/vaultgirl/vaultgirl_${mood}.png`;
+  const mood = getMood({
+    pnl: pnlToday,
+    positions: openPositions,
+    lossStreak,
+    secondsAgo
+  });
+
+  // 🧠 smooth transitions (feels alive)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDisplayMood(mood);
+    }, 300);
+
+    return () => clearTimeout(t);
+  }, [mood]);
+
+  const img = `/companion/vaultgirl/vaultgirl_${displayMood}.png`;
+
+  const opacity = displayMood === "offline" ? 0.3 : 1;
 
   return (
     <div style={{
@@ -31,17 +67,38 @@ export default function VaultCompanion({
 
       <img
         src={img}
-        style={{ width: 200 }}
+        style={{
+          width: 200,
+          opacity,
+          transition: "all 0.5s ease"
+        }}
         onError={(e) => {
           e.target.src = "/companion/vaultgirl/vaultgirl_idle.png";
         }}
       />
 
       <div style={{ marginTop: 10 }}>
-        <div>STATE: {mood.toUpperCase()}</div>
+
+        <div>STATE: {displayMood.toUpperCase()}</div>
+
+        <div>
+          HEARTBEAT: {secondsAgo < 10
+            ? "STRONG"
+            : secondsAgo < 30
+            ? "WEAK"
+            : "LOST"}
+        </div>
+
         <div>EQUITY: ${equity.toFixed(2)}</div>
-        <div>PnL: {pnlToday >= 0 ? "+" : ""}${pnlToday.toFixed(2)}</div>
-        <div>POSITIONS: {openPositions}</div>
+
+        <div style={{ color: pnlToday >= 0 ? "#00ff88" : "#ff5555" }}>
+          PnL: {pnlToday >= 0 ? "+" : ""}${pnlToday.toFixed(2)}
+        </div>
+
+        <div>TRADES ACTIVE: {openPositions}</div>
+
+        <div>LOSS STREAK: {lossStreak}</div>
+
       </div>
     </div>
   );
