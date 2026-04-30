@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const VAULT_GIRL_IMAGES = {
+  cryo: "/companion/vaultgirl/vaultgirl_cryo..png",
+  idle: "/companion/vaultgirl/vaultgirl_idle..png",
+  happy: "/companion/vaultgirl/vaultgirl_happy..png",
+  sick: "/companion/vaultgirl/vaultgirl_sick..png",
+  thriving: "/companion/vaultgirl/vaultgirl_thriving..png",
+  weak: "/companion/vaultgirl/vaultgirl_weak..png",
+  zombie: "/companion/vaultgirl/vaultgirl_zombie..png",
+};
 
 function getMood({ pnl, positions, lossStreak, secondsAgo, memory }) {
   if (secondsAgo > 30) return "cryo";
@@ -11,9 +21,7 @@ function getMood({ pnl, positions, lossStreak, secondsAgo, memory }) {
   if (positions > 0) return "thriving";
   if (pnl > 10) return "happy";
   if (pnl > 0) return "idle";
-
   if (memory?.total > 0 && memory?.win_rate >= 0.55) return "happy";
-
   return "idle";
 }
 
@@ -28,21 +36,30 @@ export default function VaultCompanion({
   brain = {},
 }) {
   const [displayMood, setDisplayMood] = useState("idle");
+  const [imageFailed, setImageFailed] = useState(false);
 
-  const mood = getMood({
-    pnl: pnlToday,
-    positions: openPositions,
-    lossStreak,
-    secondsAgo,
-    memory,
-  });
+  const mood = useMemo(
+    () =>
+      getMood({
+        pnl: Number(pnlToday) || 0,
+        positions: Number(openPositions) || 0,
+        lossStreak: Number(lossStreak) || 0,
+        secondsAgo: Number(secondsAgo) || 0,
+        memory,
+      }),
+    [pnlToday, openPositions, lossStreak, secondsAgo, memory]
+  );
 
   useEffect(() => {
-    const t = setTimeout(() => setDisplayMood(mood), 300);
+    const t = setTimeout(() => {
+      setDisplayMood(mood);
+      setImageFailed(false);
+    }, 150);
+
     return () => clearTimeout(t);
   }, [mood]);
 
-  const img = `/companion/vaultgirl/vaultgirl_${displayMood}.png`;
+  const img = VAULT_GIRL_IMAGES[displayMood] || VAULT_GIRL_IMAGES.idle;
 
   const heartbeat =
     secondsAgo < 10 ? "STRONG" : secondsAgo < 30 ? "WEAK" : "LOST";
@@ -70,23 +87,41 @@ export default function VaultCompanion({
         textAlign: "center",
         background: "#000",
         color: "#00ff88",
+        minHeight: 520,
       }}
     >
       <h3>VAULT GIRL · RENDER MEMORY CORE</h3>
 
-      <img
-        src={img}
-        alt={displayMood}
-        style={{
-          width: 220,
-          maxWidth: "80%",
-          opacity: heartbeat === "LOST" ? 0.35 : 1,
-          transition: "all 0.5s ease",
-        }}
-        onError={(e) => {
-          e.currentTarget.src = "/companion/vaultgirl/vaultgirl_idle.png";
-        }}
-      />
+      {!imageFailed ? (
+        <img
+          src={img}
+          alt={`Vault Girl ${displayMood}`}
+          style={{
+            width: 260,
+            maxWidth: "90%",
+            minHeight: 260,
+            objectFit: "contain",
+            opacity: heartbeat === "LOST" ? 0.55 : 1,
+            transition: "opacity 0.5s ease",
+            filter: "drop-shadow(0 0 16px rgba(0,255,136,0.55))",
+          }}
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <div
+          style={{
+            minHeight: 260,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px dashed rgba(0,255,136,0.35)",
+            margin: "10px auto",
+            maxWidth: 320,
+          }}
+        >
+          IMAGE PATH ERROR
+        </div>
+      )}
 
       <div style={{ marginTop: 10 }}>
         <div>STATE: {displayMood.toUpperCase()}</div>
@@ -115,7 +150,7 @@ export default function VaultCompanion({
         <div>WINS: {memory?.wins ?? stats?.wins ?? 0}</div>
         <div>LOSSES: {memory?.losses ?? stats?.losses ?? 0}</div>
         <div>
-          WIN RATE: {(((memory?.win_rate ?? stats?.win_rate ?? 0) * 100)).toFixed(1)}%
+          WIN RATE: {((memory?.win_rate ?? stats?.win_rate ?? 0) * 100).toFixed(1)}%
         </div>
         <div>AVG PNL: ${Number(memory?.avg_pnl ?? 0).toFixed(2)}</div>
         <div>BRAIN MODE: {brain?.mode || "—"}</div>
