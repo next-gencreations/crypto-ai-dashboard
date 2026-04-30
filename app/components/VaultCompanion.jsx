@@ -4,25 +4,31 @@ import { useEffect, useState } from "react";
 
 export default function VaultCompanion() {
   const [state, setState] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/proxy/data");
+        const res = await fetch("/api/proxy/data?ts=" + Date.now());
         const data = await res.json();
+
         setState(data);
+        setLastUpdate(Date.now());
       } catch (err) {
-        console.error("Failed to fetch bot state", err);
+        console.error("Companion fetch error", err);
       }
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5000);
+
+    // ⚡ Faster refresh (1 second)
+    const interval = setInterval(fetchData, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
   if (!state) {
-    return <div style={{ color: "#0f0" }}>Loading companion...</div>;
+    return <div style={{ color: "#0f0" }}>BOOTING COMPANION...</div>;
   }
 
   // 🔥 BOT DATA
@@ -30,41 +36,54 @@ export default function VaultCompanion() {
   const lossStreak = state?.brain?.loss_streak || 0;
   const openPositions = state.open_positions_count || 0;
   const drawdown = state.drawdown_from_high_pct || 0;
+  const mode = state.mode || "UNKNOWN";
 
-  // 🎭 MOOD LOGIC
+  // 🎭 MOOD ENGINE (IMPROVED)
   let mood = "idle";
+  let statusText = "STANDBY";
 
-  if (openPositions > 0) {
+  if (mode !== "LIVE") {
+    mood = "cryo";
+    statusText = "CRYO SLEEP";
+  } else if (openPositions > 0) {
     mood = "thriving";
-  } else if (pnl > 2) {
+    statusText = "IN TRADE ⚡";
+  } else if (pnl > 5) {
     mood = "happy";
-  } else if (pnl > 0.5) {
+    statusText = "PROFIT FLOW 💰";
+  } else if (pnl > 0) {
     mood = "idle";
-  } else if (pnl < -5 || drawdown > 0.03) {
+    statusText = "STABLE";
+  } else if (pnl < -10 || drawdown > 0.05) {
     mood = "zombie";
-  } else if (pnl < -2 || lossStreak >= 3) {
+    statusText = "CRITICAL ⚠️";
+  } else if (pnl < -3 || lossStreak >= 3) {
     mood = "sick";
+    statusText = "LOSING CONTROL";
   } else if (pnl < 0) {
     mood = "weak";
+    statusText = "UNDER PRESSURE";
   } else {
     mood = "cryo";
+    statusText = "WAITING";
   }
 
-  // 🖼 IMAGE PATH (uses your double-dot filenames)
   const imgPath = `/companion/vaultgirl/vaultgirl_${mood}..png`;
+
+  const secondsAgo = Math.floor((Date.now() - lastUpdate) / 1000);
 
   return (
     <div
       style={{
-        border: "1px solid #0f0",
-        padding: "10px",
+        border: "2px solid #00ff88",
+        padding: "12px",
         background: "#000",
-        color: "#0f0",
+        color: "#00ff88",
         fontFamily: "monospace",
         textAlign: "center",
       }}
     >
-      <h3>VAULT COMPANION · HOLOGRAM</h3>
+      <h3>PIP-TRADE 3000 · VAULT COMPANION</h3>
 
       <img
         src={imgPath}
@@ -72,14 +91,24 @@ export default function VaultCompanion() {
         style={{
           width: "180px",
           imageRendering: "pixelated",
+          transition: "all 0.3s ease-in-out",
         }}
       />
 
       <div style={{ marginTop: "10px" }}>
         <div>STATE: {mood.toUpperCase()}</div>
-        <div>PNL TODAY: ${pnl.toFixed(2)}</div>
-        <div>LOSS STREAK: {lossStreak}</div>
-        <div>OPEN POSITIONS: {openPositions}</div>
+        <div>{statusText}</div>
+
+        <div style={{ marginTop: "6px" }}>
+          💰 PNL: ${pnl.toFixed(2)}
+        </div>
+
+        <div>📉 LOSS STREAK: {lossStreak}</div>
+        <div>📊 POSITIONS: {openPositions}</div>
+
+        <div style={{ marginTop: "6px", fontSize: "12px" }}>
+          ⏱ updated {secondsAgo}s ago
+        </div>
       </div>
     </div>
   );
