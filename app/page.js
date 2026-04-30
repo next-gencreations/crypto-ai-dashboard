@@ -23,6 +23,14 @@ function pickOpenPositions(data) {
   return Number(data?.open_positions_count || 0);
 }
 
+function pickLossStreak(data) {
+  return Number(data?.brain?.loss_streak || 0);
+}
+
+function pickMode(data) {
+  return String(data?.mode || data?.status || "UNKNOWN").toUpperCase();
+}
+
 export default function HomePage() {
   const [data, setData] = useState(null);
   const [lastGood, setLastGood] = useState(null);
@@ -45,7 +53,7 @@ export default function HomePage() {
     } catch (e) {
       setErr("SIGNAL LOST");
 
-      // 🧠 keep last working data so UI doesn't reset
+      // 🔥 keep last working data
       if (lastGood) setData(lastGood);
     }
   }
@@ -56,11 +64,17 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  const equity = pickLatestEquityUSD(data || {});
-  const pnl = pickPnlToday(data || {});
-  const positions = pickOpenPositions(data || {});
+  const safe = data || lastGood || {};
 
-  const secondsAgo = Math.floor((Date.now() - lastUpdate) / 1000);
+  const equity = pickLatestEquityUSD(safe);
+  const pnl = pickPnlToday(safe);
+  const positions = pickOpenPositions(safe);
+  const lossStreak = pickLossStreak(safe);
+  const mode = pickMode(safe);
+
+  const secondsAgo = lastUpdate
+    ? Math.floor((Date.now() - lastUpdate) / 1000)
+    : 999;
 
   let status = "OFFLINE";
   if (secondsAgo < 10) status = "ACTIVE";
@@ -72,9 +86,10 @@ export default function HomePage() {
 
         <div className="pip-title">PIP-TRADE 3000</div>
 
-        {/* 🟢 STATUS LINE (very Fallout style) */}
+        {/* ☢️ UPGRADED STATUS LINE */}
         <div style={{ marginBottom: 10 }}>
-          STATUS: {status} • {secondsAgo}s ago
+          STATUS: {status} • MODE: {mode} • HEARTBEAT:{" "}
+          {secondsAgo >= 999 ? "—" : `${secondsAgo}s ago`}
         </div>
 
         {err && (
@@ -93,6 +108,7 @@ export default function HomePage() {
           </div>
 
           <div>POSITIONS: {positions}</div>
+          <div>LOSS STREAK: {lossStreak}</div>
         </div>
 
         <div className="pip-panel">
@@ -102,6 +118,11 @@ export default function HomePage() {
             pnlToday={pnl}
             equity={equity}
             openPositions={positions}
+            lossStreak={lossStreak}
+            secondsAgo={secondsAgo}
+            memory={safe?.memory || {}}
+            stats={safe?.stats || {}}
+            brain={safe?.brain || {}}
           />
         </div>
 
