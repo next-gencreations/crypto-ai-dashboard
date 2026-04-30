@@ -1,22 +1,30 @@
 {
   "name": "PIP-TRADE 3000",
   "short_name": "PIP-TRADE",
-  "description": "Crypto AI Trading Dashboard",
+  "description": "Crypto AI Bot Dashboard",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#001b0d",
   "theme_color": "#77ff9a",
   "orientation": "portrait",
+  "categories": [
+    "finance",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
