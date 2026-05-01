@@ -98,12 +98,13 @@ export default function VaultPage() {
   const unlocked = useMemo(() => !!status?.unlocked, [status]);
 
   const vaultGirlState = useMemo(() => {
-    if (!status) return "cryo";
-    if (!status.enabled) return "zombie";
-    if (!status.pin_set) return "weak";
+    // Keep same nice dashboard image unless vault is actually open/profitable later.
+    if (!status) return "idle";
+    if (!status.enabled) return "idle";
+    if (!status.pin_set) return "idle";
     if (unlocked && ttl > 60) return "happy";
     if (unlocked) return "idle";
-    return "cryo";
+    return "idle";
   }, [status, unlocked, ttl]);
 
   const vaultGirlSrc = VAULT_GIRL[vaultGirlState] || VAULT_GIRL.idle;
@@ -439,7 +440,7 @@ export default function VaultPage() {
               src={vaultGirlSrc}
               alt={`Vault Girl ${vaultGirlState}`}
               onError={(e) => {
-                e.currentTarget.style.display = "none";
+                e.currentTarget.src = VAULT_GIRL.idle;
               }}
             />
 
