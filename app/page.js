@@ -11,10 +11,8 @@ const INTRO_URL =
 function pickLatestEquityUSD(data) {
   const direct = Number(data?.equity);
   if (Number.isFinite(direct)) return direct;
-
   const hb = Number(data?.heartbeat?.equity_usd);
   if (Number.isFinite(hb)) return hb;
-
   return 0;
 }
 
@@ -34,6 +32,80 @@ function pickMode(data) {
   return String(data?.mode || data?.status || "UNKNOWN").toUpperCase();
 }
 
+function pickMarkets(data) {
+  const runtime = data?.runtime_universe;
+  if (Array.isArray(runtime) && runtime.length) return runtime;
+
+  const universe = data?.universe;
+  if (Array.isArray(universe) && universe.length) return universe;
+
+  return ["BTC-USD"];
+}
+
+function pickVaultState({ status, pnl, positions, lossStreak, secondsAgo }) {
+  if (status === "OFFLINE") {
+    return {
+      state: "SIGNAL LOST",
+      line: "RECONNECTING TO RENDER CORE",
+      mood: "offline",
+    };
+  }
+
+  if (lossStreak >= 5) {
+    return {
+      state: "CRYO SLEEP",
+      line: "LOSS STREAK PROTECTION ACTIVE",
+      mood: "cryo",
+    };
+  }
+
+  if (lossStreak >= 3) {
+    return {
+      state: "CRYO WARNING",
+      line: "DEFENSIVE MODE ARMED",
+      mood: "warning",
+    };
+  }
+
+  if (positions > 0) {
+    return {
+      state: "ENGAGED",
+      line: "LIVE POSITION UNDER WATCH",
+      mood: pnl >= 0 ? "focused" : "pressure",
+    };
+  }
+
+  if (pnl > 0.05) {
+    return {
+      state: "ENERGISED",
+      line: "PROFIT MEMORY FEEDING CORE",
+      mood: "happy",
+    };
+  }
+
+  if (pnl < -0.05) {
+    return {
+      state: "UNDER PRESSURE",
+      line: "SMALL DAMAGE DETECTED",
+      mood: "weak",
+    };
+  }
+
+  if (secondsAgo < 30) {
+    return {
+      state: "HUNTER MODE",
+      line: "SCANNING FOR CLEAN ENTRY",
+      mood: "hunter",
+    };
+  }
+
+  return {
+    state: "PATIENT",
+    line: "WAITING FOR MARKET EDGE",
+    mood: "idle",
+  };
+}
+
 export default function HomePage() {
   const [booting, setBooting] = useState(true);
   const [data, setData] = useState(null);
@@ -43,7 +115,9 @@ export default function HomePage() {
 
   async function fetchData() {
     try {
-      const res = await fetch("/api/proxy/data?ts=" + Date.now());
+      const res = await fetch("/api/proxy/data?ts=" + Date.now(), {
+        cache: "no-store",
+      });
 
       if (!res.ok) throw new Error("API error");
 
@@ -77,6 +151,7 @@ export default function HomePage() {
   const positions = pickOpenPositions(safe);
   const lossStreak = pickLossStreak(safe);
   const mode = pickMode(safe);
+  const markets = pickMarkets(safe);
 
   const secondsAgo = lastUpdate
     ? Math.floor((Date.now() - lastUpdate) / 1000)
@@ -85,6 +160,14 @@ export default function HomePage() {
   let status = "OFFLINE";
   if (secondsAgo < 10) status = "ACTIVE";
   else if (secondsAgo < 30) status = "WEAK SIGNAL";
+
+  const vault = pickVaultState({
+    status,
+    pnl,
+    positions,
+    lossStreak,
+    secondsAgo,
+  });
 
   if (booting) {
     return (
@@ -139,21 +222,22 @@ export default function HomePage() {
       <div className="pip-shell">
         <div className="pip-title">PIP-TRADE 3000</div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div className="pip-subline">
           STATUS: {status} • MODE: {mode} • HEARTBEAT:{" "}
           {secondsAgo >= 999 ? "—" : `${secondsAgo}s ago`}
+        </div>
+
+        <div className="pip-panel hunter-panel">
+          <div className="pip-heading">HUNTER MODE</div>
+          <div>STATE: {vault.state}</div>
+          <div>{vault.line}</div>
+          <div>WATCHLIST: {markets.join(", ")}</div>
         </div>
 
         <div className="pip-panel">
           <div className="pip-heading">COMMAND DECK</div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 10,
-            }}
-          >
+          <div className="command-grid">
             <Link className="pip-button" href="/">
               DASHBOARD
             </Link>
@@ -172,7 +256,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {err && <div className="pip-panel">⚠️ {err}</div>}
+        {err && <div className="pip-panel warning">⚠️ {err}</div>}
 
         <div className="pip-panel">
           <div className="pip-heading">SYSTEM STATUS</div>
@@ -199,10 +283,31 @@ export default function HomePage() {
             memory={safe?.memory || {}}
             stats={safe?.stats || {}}
             brain={safe?.brain || {}}
+            vaultState={vault.state}
+            vaultMood={vault.mood}
+            vaultLine={vault.line}
           />
         </div>
 
         <style>{`
+          .pip-subline {
+            margin-bottom: 14px;
+            opacity: 0.95;
+          }
+
+          .hunter-panel {
+            border-color: rgba(0,255,136,0.9);
+            box-shadow:
+              0 0 16px rgba(0,255,136,0.16),
+              inset 0 0 20px rgba(0,255,136,0.08);
+          }
+
+          .command-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+          }
+
           .pip-button {
             border: 1px solid rgba(0,255,136,0.55);
             color: #67ff9a;
@@ -218,6 +323,10 @@ export default function HomePage() {
 
           .pip-button:active {
             transform: scale(0.98);
+          }
+
+          .warning {
+            color: #ffdd55;
           }
         `}</style>
       </div>
