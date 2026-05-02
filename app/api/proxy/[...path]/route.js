@@ -1,42 +1,37 @@
-// app/api/proxy/[...path]/route.js
-export const runtime = "nodejs";
-
-import { proxyFetch } from "../_lib";
-
-// GET /api/proxy/<anything>
 export async function GET(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, path);
-}
+  try {
+    const path = params.path.join("/")
+    const base = process.env.BOT_BASE_URL
 
-// POST /api/proxy/<anything>
-export async function POST(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, path);
-}
+    const url = `${base}/${path}`
 
-export async function PUT(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, path);
-}
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    })
 
-export async function PATCH(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, path);
-}
+    if (!res.ok) {
+      return new Response(
+        JSON.stringify({ error: "Bot request failed" }),
+        { status: res.status }
+      )
+    }
 
-export async function DELETE(req, { params }) {
-  const path = "/" + (params?.path || []).join("/");
-  return proxyFetch(req, path);
-}
+    const data = await res.text()
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "access-control-allow-headers": "*",
-    },
-  });
+    return new Response(data, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "Proxy error", details: err.message }),
+      { status: 500 }
+    )
+  }
 }
