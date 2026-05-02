@@ -12,17 +12,94 @@ const VAULT_GIRL_IMAGES = {
   zombie: "/companion/vaultgirl/vaultgirl_zombie..png",
 };
 
-function getMood({ pnl, positions, lossStreak, secondsAgo, memory }) {
-  if (secondsAgo > 30) return "cryo";
-  if (lossStreak >= 5) return "zombie";
-  if (pnl < -15) return "zombie";
-  if (pnl < -5 || lossStreak >= 3) return "sick";
-  if (pnl < 0) return "weak";
-  if (positions > 0) return "thriving";
-  if (pnl > 10) return "happy";
-  if (pnl > 0) return "idle";
-  if (memory?.total > 0 && memory?.win_rate >= 0.55) return "happy";
-  return "idle";
+function getCompanionState({
+  pnl,
+  positions,
+  lossStreak,
+  secondsAgo,
+  memory,
+  vaultState,
+  vaultMood,
+  vaultLine,
+}) {
+  if (secondsAgo > 30) {
+    return {
+      mood: "cryo",
+      state: "SIGNAL LOST",
+      line: "RECONNECTING TO RENDER CORE",
+      pulse: "SLEEP",
+    };
+  }
+
+  if (lossStreak >= 5) {
+    return {
+      mood: "zombie",
+      state: "CRYO SLEEP",
+      line: "LOSS STREAK PROTECTION ACTIVE",
+      pulse: "DANGER",
+    };
+  }
+
+  if (lossStreak >= 3) {
+    return {
+      mood: "sick",
+      state: "CRYO WARNING",
+      line: "DEFENSIVE MODE ARMED",
+      pulse: "WARNING",
+    };
+  }
+
+  if (positions > 0) {
+    return {
+      mood: "thriving",
+      state: "ENGAGED",
+      line: "LIVE POSITION UNDER WATCH",
+      pulse: "TARGET LOCK",
+    };
+  }
+
+  if (pnl > 0.05) {
+    return {
+      mood: "happy",
+      state: "PROFIT FED",
+      line: "VAULT CORE ENERGISED",
+      pulse: "GREEN",
+    };
+  }
+
+  if (pnl < -0.05) {
+    return {
+      mood: "weak",
+      state: "UNDER PRESSURE",
+      line: "SMALL DAMAGE DETECTED",
+      pulse: "LOW",
+    };
+  }
+
+  if (vaultMood === "hunter" || vaultState === "HUNTER MODE") {
+    return {
+      mood: "idle",
+      state: "HUNTER MODE",
+      line: vaultLine || "SCANNING FOR CLEAN ENTRY",
+      pulse: "SCANNING",
+    };
+  }
+
+  if (memory?.total > 0 && memory?.win_rate >= 0.55) {
+    return {
+      mood: "happy",
+      state: "MEMORY CONFIDENT",
+      line: "PAST WINS BOOSTING CORE",
+      pulse: "GREEN",
+    };
+  }
+
+  return {
+    mood: "idle",
+    state: "SCANNING",
+    line: "PATIENT · WAITING FOR MARKET EDGE",
+    pulse: "SCANNING",
+  };
 }
 
 export default function VaultCompanion({
@@ -34,98 +111,74 @@ export default function VaultCompanion({
   memory = {},
   stats = {},
   brain = {},
+  vaultState = "",
+  vaultMood = "",
+  vaultLine = "",
 }) {
-  const [displayMood, setDisplayMood] = useState("idle");
+  const [display, setDisplay] = useState({
+    mood: "idle",
+    state: "SCANNING",
+    line: "PATIENT · WAITING FOR MARKET EDGE",
+    pulse: "SCANNING",
+  });
   const [imageFailed, setImageFailed] = useState(false);
 
-  const mood = useMemo(
+  const companion = useMemo(
     () =>
-      getMood({
+      getCompanionState({
         pnl: Number(pnlToday) || 0,
         positions: Number(openPositions) || 0,
         lossStreak: Number(lossStreak) || 0,
         secondsAgo: Number(secondsAgo) || 0,
         memory,
+        vaultState,
+        vaultMood,
+        vaultLine,
       }),
-    [pnlToday, openPositions, lossStreak, secondsAgo, memory]
+    [
+      pnlToday,
+      openPositions,
+      lossStreak,
+      secondsAgo,
+      memory,
+      vaultState,
+      vaultMood,
+      vaultLine,
+    ]
   );
 
   useEffect(() => {
     const t = setTimeout(() => {
-      setDisplayMood(mood);
+      setDisplay(companion);
       setImageFailed(false);
     }, 150);
 
     return () => clearTimeout(t);
-  }, [mood]);
+  }, [companion]);
 
-  const img = VAULT_GIRL_IMAGES[displayMood] || VAULT_GIRL_IMAGES.idle;
+  const img = VAULT_GIRL_IMAGES[display.mood] || VAULT_GIRL_IMAGES.idle;
 
   const heartbeat =
     secondsAgo < 10 ? "STRONG" : secondsAgo < 30 ? "WEAK" : "LOST";
 
-  const statusText =
-    heartbeat === "LOST"
-      ? "COMMS LOST · CRYO STANDBY"
-      : displayMood === "zombie"
-      ? "CRITICAL · PROTECT THE VAULT"
-      : displayMood === "sick"
-      ? "UNSTABLE · LOSS CONTROL"
-      : displayMood === "weak"
-      ? "UNDER PRESSURE"
-      : displayMood === "thriving"
-      ? "TRADE ACTIVE · FOCUSED"
-      : displayMood === "happy"
-      ? "PROFIT FLOW · VAULT STABLE"
-      : "WAITING FOR CLEAN SIGNAL";
-
   return (
-    <div
-      style={{
-        border: "2px solid #00ff88",
-        padding: 12,
-        textAlign: "center",
-        background: "#000",
-        color: "#00ff88",
-        minHeight: 520,
-      }}
-    >
+    <div className={`vaultBox pulse-${display.pulse.toLowerCase().replaceAll(" ", "-")}`}>
       <h3>VAULT GIRL · RENDER MEMORY CORE</h3>
 
       {!imageFailed ? (
         <img
           src={img}
-          alt={`Vault Girl ${displayMood}`}
-          style={{
-            width: 260,
-            maxWidth: "90%",
-            minHeight: 260,
-            objectFit: "contain",
-            opacity: heartbeat === "LOST" ? 0.55 : 1,
-            transition: "opacity 0.5s ease",
-            filter: "drop-shadow(0 0 16px rgba(0,255,136,0.55))",
-          }}
+          alt={`Vault Girl ${display.mood}`}
+          className="vaultGirlImg"
           onError={() => setImageFailed(true)}
         />
       ) : (
-        <div
-          style={{
-            minHeight: 260,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "1px dashed rgba(0,255,136,0.35)",
-            margin: "10px auto",
-            maxWidth: 320,
-          }}
-        >
-          IMAGE PATH ERROR
-        </div>
+        <div className="imageError">IMAGE PATH ERROR</div>
       )}
 
-      <div style={{ marginTop: 10 }}>
-        <div>STATE: {displayMood.toUpperCase()}</div>
-        <div>{statusText}</div>
+      <div className="vaultStatus">
+        <div>STATE: {display.state}</div>
+        <div>{display.line}</div>
         <div>HEARTBEAT: {heartbeat}</div>
         <div>EQUITY: ${Number(equity).toFixed(2)}</div>
 
@@ -137,15 +190,7 @@ export default function VaultCompanion({
         <div>LOSS STREAK: {lossStreak}</div>
       </div>
 
-      <div
-        style={{
-          marginTop: 12,
-          paddingTop: 10,
-          borderTop: "1px dashed rgba(0,255,136,0.35)",
-          fontSize: 13,
-          textAlign: "left",
-        }}
-      >
+      <div className="memoryBlock">
         <div>MEMORY TRADES: {memory?.total ?? stats?.total ?? 0}</div>
         <div>WINS: {memory?.wins ?? stats?.wins ?? 0}</div>
         <div>LOSSES: {memory?.losses ?? stats?.losses ?? 0}</div>
@@ -156,6 +201,103 @@ export default function VaultCompanion({
         <div>BRAIN MODE: {brain?.mode || "—"}</div>
         <div>AVOID MODE: {brain?.avoid_active ? "YES" : "NO"}</div>
       </div>
+
+      <style>{`
+        .vaultBox {
+          border: 2px solid #00ff88;
+          padding: 12px;
+          text-align: center;
+          background: #000;
+          color: #00ff88;
+          min-height: 520px;
+          box-shadow:
+            0 0 18px rgba(0,255,136,0.18),
+            inset 0 0 18px rgba(0,255,136,0.08);
+        }
+
+        .vaultGirlImg {
+          width: 260px;
+          max-width: 90%;
+          min-height: 260px;
+          object-fit: contain;
+          transition: opacity 0.5s ease, transform 0.5s ease;
+          filter: drop-shadow(0 0 16px rgba(0,255,136,0.55));
+        }
+
+        .pulse-scanning .vaultGirlImg {
+          animation: scanPulse 2.8s infinite ease-in-out;
+        }
+
+        .pulse-target-lock .vaultGirlImg {
+          animation: targetLock 1s infinite ease-in-out;
+        }
+
+        .pulse-green .vaultGirlImg {
+          animation: happyPulse 1.8s infinite ease-in-out;
+        }
+
+        .pulse-low .vaultGirlImg,
+        .pulse-warning .vaultGirlImg {
+          animation: warningPulse 1.4s infinite ease-in-out;
+        }
+
+        .pulse-danger .vaultGirlImg {
+          animation: dangerPulse 0.75s infinite ease-in-out;
+        }
+
+        .pulse-sleep .vaultGirlImg {
+          opacity: 0.55;
+        }
+
+        .vaultStatus {
+          margin-top: 10px;
+          font-size: 16px;
+          line-height: 1.35;
+        }
+
+        .memoryBlock {
+          margin-top: 12px;
+          padding-top: 10px;
+          border-top: 1px dashed rgba(0,255,136,0.35);
+          font-size: 13px;
+          text-align: left;
+        }
+
+        .imageError {
+          min-height: 260px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px dashed rgba(0,255,136,0.35);
+          margin: 10px auto;
+          max-width: 320px;
+        }
+
+        @keyframes scanPulse {
+          0%, 100% { transform: scale(1); opacity: 0.92; }
+          50% { transform: scale(1.015); opacity: 1; }
+        }
+
+        @keyframes targetLock {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(0,255,136,0.55)); }
+          50% { transform: scale(1.03); filter: drop-shadow(0 0 26px rgba(0,255,136,0.95)); }
+        }
+
+        @keyframes happyPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.025); }
+        }
+
+        @keyframes warningPulse {
+          0%, 100% { opacity: 0.78; transform: translateX(0); }
+          50% { opacity: 1; transform: translateX(1px); }
+        }
+
+        @keyframes dangerPulse {
+          0%, 100% { opacity: 0.55; transform: scale(0.99); }
+          50% { opacity: 1; transform: scale(1.025); }
+        }
+      `}</style>
     </div>
   );
 }
