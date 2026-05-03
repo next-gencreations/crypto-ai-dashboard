@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 const VAULT_GIRL_IMAGES = {
-  cryo: "/companion/vaultgirl/vaultgirl_cryo..png",
-  idle: "/companion/vaultgirl/vaultgirl_idle..png",
-  happy: "/companion/vaultgirl/vaultgirl_happy..png",
-  sick: "/companion/vaultgirl/vaultgirl_sick..png",
-  thriving: "/companion/vaultgirl/vaultgirl_thriving..png",
-  weak: "/companion/vaultgirl/vaultgirl_weak..png",
-  zombie: "/companion/vaultgirl/vaultgirl_zombie..png",
+  cryo: "/companion/vaultgirl/vaultgirl_cryo.png",
+  idle: "/companion/vaultgirl/vaultgirl_idle.png",
+  happy: "/companion/vaultgirl/vaultgirl_happy.png",
+  sick: "/companion/vaultgirl/vaultgirl_sick.png",
+  thriving: "/companion/vaultgirl/vaultgirl_thriving.png",
+  weak: "/companion/vaultgirl/vaultgirl_weak.png",
+  zombie: "/companion/vaultgirl/vaultgirl_zombie.png",
 };
 
 function getCompanionState({
@@ -21,49 +21,55 @@ function getCompanionState({
   vaultState,
   vaultMood,
   vaultLine,
+  vaultRoom,
 }) {
   if (secondsAgo > 30) {
     return {
       mood: "cryo",
-      state: "SIGNAL LOST",
-      line: "RECONNECTING TO RENDER CORE",
+      state: "CRYO LOCKDOWN",
+      line: "SIGNAL LOST · RECONNECTING TO RENDER CORE",
       pulse: "SLEEP",
+      action: "Sleeping inside cryo tube",
     };
   }
 
   if (lossStreak >= 5) {
     return {
       mood: "zombie",
-      state: "CRYO SLEEP",
+      state: "MEDICAL EMERGENCY",
       line: "LOSS STREAK PROTECTION ACTIVE",
       pulse: "DANGER",
+      action: "Critical recovery in Vault 63 med bay",
     };
   }
 
   if (lossStreak >= 3) {
     return {
       mood: "sick",
-      state: "CRYO WARNING",
+      state: "RECOVERY MODE",
       line: "DEFENSIVE MODE ARMED",
       pulse: "WARNING",
+      action: "Resting while the trading brain cools down",
     };
   }
 
   if (positions > 0) {
     return {
       mood: "thriving",
-      state: "ENGAGED",
+      state: "HUNTER MODE",
       line: "LIVE POSITION UNDER WATCH",
       pulse: "TARGET LOCK",
+      action: "Operating the trading terminal",
     };
   }
 
   if (pnl > 0.05) {
     return {
       mood: "happy",
-      state: "PROFIT FED",
-      line: "VAULT CORE ENERGISED",
+      state: "VAULT ENERGISED",
+      line: "PROFIT MEMORY FEEDING CORE",
       pulse: "GREEN",
+      action: "Training, eating, and restoring energy",
     };
   }
 
@@ -73,15 +79,17 @@ function getCompanionState({
       state: "UNDER PRESSURE",
       line: "SMALL DAMAGE DETECTED",
       pulse: "LOW",
+      action: "Resting after market damage",
     };
   }
 
   if (vaultMood === "hunter" || vaultState === "HUNTER MODE") {
     return {
       mood: "idle",
-      state: "HUNTER MODE",
-      line: vaultLine || "SCANNING FOR CLEAN ENTRY",
+      state: "SCANNING",
+      line: vaultLine || "LOOKING FOR CLEAN ENTRY",
       pulse: "SCANNING",
+      action: "Scanning market structure from Vault 63 Lab",
     };
   }
 
@@ -91,14 +99,16 @@ function getCompanionState({
       state: "MEMORY CONFIDENT",
       line: "PAST WINS BOOSTING CORE",
       pulse: "GREEN",
+      action: "Reviewing successful trade memory",
     };
   }
 
   return {
     mood: "idle",
-    state: "SCANNING",
-    line: "PATIENT · WAITING FOR MARKET EDGE",
+    state: "PATIENT",
+    line: "WAITING FOR MARKET EDGE",
     pulse: "SCANNING",
+    action: `Standing by in ${vaultRoom || "Vault 63 Lab"}`,
   };
 }
 
@@ -114,13 +124,16 @@ export default function VaultCompanion({
   vaultState = "",
   vaultMood = "",
   vaultLine = "",
+  vaultRoom = "VAULT 63 LAB",
 }) {
   const [display, setDisplay] = useState({
     mood: "idle",
-    state: "SCANNING",
-    line: "PATIENT · WAITING FOR MARKET EDGE",
+    state: "PATIENT",
+    line: "WAITING FOR MARKET EDGE",
     pulse: "SCANNING",
+    action: "Standing by in Vault 63 Lab",
   });
+
   const [imageFailed, setImageFailed] = useState(false);
 
   const companion = useMemo(
@@ -134,6 +147,7 @@ export default function VaultCompanion({
         vaultState,
         vaultMood,
         vaultLine,
+        vaultRoom,
       }),
     [
       pnlToday,
@@ -144,6 +158,7 @@ export default function VaultCompanion({
       vaultState,
       vaultMood,
       vaultLine,
+      vaultRoom,
     ]
   );
 
@@ -163,7 +178,9 @@ export default function VaultCompanion({
 
   return (
     <div className={`vaultBox pulse-${display.pulse.toLowerCase().replaceAll(" ", "-")}`}>
-      <h3>VAULT GIRL · RENDER MEMORY CORE</h3>
+      <h3>VAULT 63 LAB · MEMORY CORE</h3>
+
+      <div className="roomTag">CURRENT ROOM: {vaultRoom}</div>
 
       {!imageFailed ? (
         <img
@@ -179,6 +196,7 @@ export default function VaultCompanion({
       <div className="vaultStatus">
         <div>STATE: {display.state}</div>
         <div>{display.line}</div>
+        <div>ACTION: {display.action}</div>
         <div>HEARTBEAT: {heartbeat}</div>
         <div>EQUITY: ${Number(equity).toFixed(2)}</div>
 
@@ -207,12 +225,24 @@ export default function VaultCompanion({
           border: 2px solid #00ff88;
           padding: 12px;
           text-align: center;
-          background: #000;
+          background:
+            radial-gradient(circle at top, rgba(0,255,136,0.10), transparent 38%),
+            #000;
           color: #00ff88;
-          min-height: 520px;
+          min-height: 540px;
           box-shadow:
             0 0 18px rgba(0,255,136,0.18),
             inset 0 0 18px rgba(0,255,136,0.08);
+        }
+
+        .roomTag {
+          margin: 8px auto 10px;
+          font-size: 13px;
+          opacity: 0.85;
+          border: 1px solid rgba(0,255,136,0.35);
+          padding: 6px 8px;
+          max-width: 320px;
+          background: rgba(0, 40, 18, 0.45);
         }
 
         .vaultGirlImg {
@@ -279,8 +309,14 @@ export default function VaultCompanion({
         }
 
         @keyframes targetLock {
-          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(0,255,136,0.55)); }
-          50% { transform: scale(1.03); filter: drop-shadow(0 0 26px rgba(0,255,136,0.95)); }
+          0%, 100% {
+            transform: scale(1);
+            filter: drop-shadow(0 0 14px rgba(0,255,136,0.55));
+          }
+          50% {
+            transform: scale(1.03);
+            filter: drop-shadow(0 0 26px rgba(0,255,136,0.95));
+          }
         }
 
         @keyframes happyPulse {
