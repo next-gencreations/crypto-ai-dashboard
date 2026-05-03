@@ -39,47 +39,55 @@ function pickMarkets(data) {
   const universe = data?.universe;
   if (Array.isArray(universe) && universe.length) return universe;
 
+  const scout = data?.scout?.expanded_universe;
+  if (Array.isArray(scout) && scout.length) return scout;
+
   return ["BTC-USD"];
 }
 
 function pickVaultState({ status, pnl, positions, lossStreak, secondsAgo }) {
   if (status === "OFFLINE") {
     return {
-      state: "SIGNAL LOST",
+      state: "CRYO LOCKDOWN",
       line: "RECONNECTING TO RENDER CORE",
-      mood: "offline",
+      mood: "cryo",
+      room: "CRYO BAY",
     };
   }
 
   if (lossStreak >= 5) {
     return {
-      state: "CRYO SLEEP",
+      state: "MEDICAL EMERGENCY",
       line: "LOSS STREAK PROTECTION ACTIVE",
-      mood: "cryo",
+      mood: "zombie",
+      room: "MED BAY",
     };
   }
 
   if (lossStreak >= 3) {
     return {
-      state: "CRYO WARNING",
+      state: "RECOVERY MODE",
       line: "DEFENSIVE MODE ARMED",
-      mood: "warning",
+      mood: "sick",
+      room: "MED BAY",
     };
   }
 
   if (positions > 0) {
     return {
-      state: "ENGAGED",
+      state: "HUNTER MODE",
       line: "LIVE POSITION UNDER WATCH",
-      mood: pnl >= 0 ? "focused" : "pressure",
+      mood: pnl >= 0 ? "thriving" : "weak",
+      room: "TRADING TERMINAL",
     };
   }
 
   if (pnl > 0.05) {
     return {
-      state: "ENERGISED",
+      state: "VAULT ENERGISED",
       line: "PROFIT MEMORY FEEDING CORE",
       mood: "happy",
+      room: "GYM / CANTEEN",
     };
   }
 
@@ -88,14 +96,16 @@ function pickVaultState({ status, pnl, positions, lossStreak, secondsAgo }) {
       state: "UNDER PRESSURE",
       line: "SMALL DAMAGE DETECTED",
       mood: "weak",
+      room: "REST BAY",
     };
   }
 
   if (secondsAgo < 30) {
     return {
-      state: "HUNTER MODE",
-      line: "SCANNING FOR CLEAN ENTRY",
-      mood: "hunter",
+      state: "SCANNING",
+      line: "LOOKING FOR CLEAN ENTRY",
+      mood: "idle",
+      room: "LAB FLOOR",
     };
   }
 
@@ -103,6 +113,7 @@ function pickVaultState({ status, pnl, positions, lossStreak, secondsAgo }) {
     state: "PATIENT",
     line: "WAITING FOR MARKET EDGE",
     mood: "idle",
+    room: "LAB FLOOR",
   };
 }
 
@@ -112,6 +123,7 @@ export default function HomePage() {
   const [lastGood, setLastGood] = useState(null);
   const [err, setErr] = useState("");
   const [lastUpdate, setLastUpdate] = useState(0);
+  const [room, setRoom] = useState("LAB FLOOR");
 
   async function fetchData() {
     try {
@@ -228,10 +240,41 @@ export default function HomePage() {
         </div>
 
         <div className="pip-panel hunter-panel">
-          <div className="pip-heading">HUNTER MODE</div>
-          <div>STATE: {vault.state}</div>
+          <div className="pip-heading">VAULT LAB</div>
+          <div>ROOM: {room}</div>
+          <div>VAULT GIRL: {vault.state}</div>
           <div>{vault.line}</div>
           <div>WATCHLIST: {markets.join(", ")}</div>
+        </div>
+
+        <div className="pip-panel">
+          <div className="pip-heading">MOVE AROUND VAULT</div>
+
+          <div className="room-grid">
+            <button className="pip-button" onClick={() => setRoom("TRADING TERMINAL")}>
+              TERMINAL
+            </button>
+
+            <button className="pip-button" onClick={() => setRoom("PIPBOY WRIST DEVICE")}>
+              PIPBOY
+            </button>
+
+            <button className="pip-button" onClick={() => setRoom("CRYO BAY")}>
+              CRYO BAY
+            </button>
+
+            <button className="pip-button" onClick={() => setRoom("MED BAY")}>
+              MED BAY
+            </button>
+
+            <button className="pip-button" onClick={() => setRoom("REST BAY")}>
+              BED
+            </button>
+
+            <button className="pip-button" onClick={() => setRoom("GYM / CANTEEN")}>
+              GYM / FOOD
+            </button>
+          </div>
         </div>
 
         <div className="pip-panel">
@@ -286,6 +329,7 @@ export default function HomePage() {
             vaultState={vault.state}
             vaultMood={vault.mood}
             vaultLine={vault.line}
+            vaultRoom={room}
           />
         </div>
 
@@ -302,7 +346,8 @@ export default function HomePage() {
               inset 0 0 20px rgba(0,255,136,0.08);
           }
 
-          .command-grid {
+          .command-grid,
+          .room-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
@@ -319,6 +364,8 @@ export default function HomePage() {
             font-weight: 900;
             letter-spacing: 1px;
             box-shadow: inset 0 0 12px rgba(0,255,136,0.08);
+            font-family: inherit;
+            font-size: inherit;
           }
 
           .pip-button:active {
