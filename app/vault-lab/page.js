@@ -2,8 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-// Load Vault Lab safely (no SSR crash)
-const VaultLab = dynamic(() => import("./VaultLabWrapper"), {
+const VaultLab = dynamic(() => import("./VaultLab"), {
   ssr: false,
 });
 
