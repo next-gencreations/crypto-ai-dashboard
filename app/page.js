@@ -47,74 +47,34 @@ function pickMarkets(data) {
 
 function pickVaultState({ status, pnl, positions, lossStreak, secondsAgo }) {
   if (status === "OFFLINE") {
-    return {
-      state: "CRYO LOCKDOWN",
-      line: "RECONNECTING TO RENDER CORE",
-      mood: "cryo",
-      room: "CRYO BAY",
-    };
+    return { state: "CRYO LOCKDOWN", line: "RECONNECTING TO RENDER CORE", mood: "cryo", room: "CRYO BAY" };
   }
 
   if (lossStreak >= 5) {
-    return {
-      state: "MEDICAL EMERGENCY",
-      line: "LOSS STREAK PROTECTION ACTIVE",
-      mood: "zombie",
-      room: "MED BAY",
-    };
+    return { state: "MEDICAL EMERGENCY", line: "LOSS STREAK PROTECTION ACTIVE", mood: "zombie", room: "MED BAY" };
   }
 
   if (lossStreak >= 3) {
-    return {
-      state: "RECOVERY MODE",
-      line: "DEFENSIVE MODE ARMED",
-      mood: "sick",
-      room: "MED BAY",
-    };
+    return { state: "RECOVERY MODE", line: "DEFENSIVE MODE ARMED", mood: "sick", room: "MED BAY" };
   }
 
   if (positions > 0) {
-    return {
-      state: "HUNTER MODE",
-      line: "LIVE POSITION UNDER WATCH",
-      mood: pnl >= 0 ? "thriving" : "weak",
-      room: "TRADING TERMINAL",
-    };
+    return { state: "HUNTER MODE", line: "LIVE POSITION UNDER WATCH", mood: pnl >= 0 ? "thriving" : "weak", room: "TRADING TERMINAL" };
   }
 
   if (pnl > 0.05) {
-    return {
-      state: "VAULT ENERGISED",
-      line: "PROFIT MEMORY FEEDING CORE",
-      mood: "happy",
-      room: "GYM / CANTEEN",
-    };
+    return { state: "VAULT ENERGISED", line: "PROFIT MEMORY FEEDING CORE", mood: "happy", room: "GYM / CANTEEN" };
   }
 
   if (pnl < -0.05) {
-    return {
-      state: "UNDER PRESSURE",
-      line: "SMALL DAMAGE DETECTED",
-      mood: "weak",
-      room: "REST BAY",
-    };
+    return { state: "UNDER PRESSURE", line: "SMALL DAMAGE DETECTED", mood: "weak", room: "REST BAY" };
   }
 
   if (secondsAgo < 30) {
-    return {
-      state: "SCANNING",
-      line: "LOOKING FOR CLEAN ENTRY",
-      mood: "idle",
-      room: "LAB FLOOR",
-    };
+    return { state: "SCANNING", line: "LOOKING FOR CLEAN ENTRY", mood: "idle", room: "LAB FLOOR" };
   }
 
-  return {
-    state: "PATIENT",
-    line: "WAITING FOR MARKET EDGE",
-    mood: "idle",
-    room: "LAB FLOOR",
-  };
+  return { state: "PATIENT", line: "WAITING FOR MARKET EDGE", mood: "idle", room: "LAB FLOOR" };
 }
 
 export default function HomePage() {
@@ -283,6 +243,10 @@ export default function HomePage() {
           <div className="command-grid">
             <Link className="pip-button" href="/">
               DASHBOARD
+            </Link>
+
+            <Link className="pip-button" href="/vault-lab">
+              ENTER VAULT 63 LAB
             </Link>
 
             <Link className="pip-button" href="/chart">
