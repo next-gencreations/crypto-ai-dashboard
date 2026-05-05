@@ -1,4 +1,6 @@
 import { MutableRefObject, Suspense } from 'react';
+import { useLoader } from '@react-three/fiber';
+import { TextureLoader } from 'three';
 import { Room } from './Room';
 import { CryoTube3D } from './CryoTube3D';
 import { Terminal3D } from './Terminal3D';
@@ -18,55 +20,78 @@ interface Props {
   playerPosRef: MutableRefObject<{ x: number; z: number }>;
 }
 
+function VaultGirlInCryo() {
+  const texture = useLoader(
+    TextureLoader,
+    '/companion/vaultgirl/vaultgirl_cryo..png'
+  );
+
+  return (
+    <group position={[0, 1.75, -6.15]}>
+      <mesh>
+        <planeGeometry args={[1.65, 3.05]} />
+        <meshBasicMaterial
+          map={texture}
+          transparent
+          opacity={0.88}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <pointLight
+        position={[0, 0.2, 0.4]}
+        color="#00ff88"
+        intensity={2.2}
+        distance={4}
+        decay={2}
+      />
+    </group>
+  );
+}
+
 export function Scene({
   introStep, nearbyTerminal, onNearTerminal, onLock, onUnlock, paused,
   isMobile, cameraRotRef, moveInputRef, playerPosRef,
 }: Props) {
   return (
     <>
-      {/* Strong ambient — walls fully readable */}
       <ambientLight intensity={1.1} color="#d8e8f0" />
 
-      {/* Ceiling strip lights — bright Vault-Tec fluorescents */}
-      <pointLight position={[0,  5.4, -8]} color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
+      <pointLight position={[0, 5.4, -8]} color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
       <pointLight position={[-7, 5.4, -8]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
-      <pointLight position={[7,  5.4, -8]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
-      <pointLight position={[0,  5.4, 0]}  color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
-      <pointLight position={[-7, 5.4, 0]}  color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
-      <pointLight position={[7,  5.4, 0]}  color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
-      <pointLight position={[0,  5.4, 8]}  color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
-      <pointLight position={[-7, 5.4, 8]}  color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
-      <pointLight position={[7,  5.4, 8]}  color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
+      <pointLight position={[7, 5.4, -8]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
+      <pointLight position={[0, 5.4, 0]} color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
+      <pointLight position={[-7, 5.4, 0]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
+      <pointLight position={[7, 5.4, 0]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
+      <pointLight position={[0, 5.4, 8]} color="#d8f0ff" intensity={8.0} distance={22} decay={2} />
+      <pointLight position={[-7, 5.4, 8]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
+      <pointLight position={[7, 5.4, 8]} color="#c8e4ff" intensity={6.0} distance={18} decay={2} />
 
-      {/* Corner fill lights — no dark edges */}
       <pointLight position={[-12, 3, -12]} color="#aaccee" intensity={4.0} distance={18} decay={2} />
-      <pointLight position={[12,  3, -12]} color="#aaccee" intensity={4.0} distance={18} decay={2} />
-      <pointLight position={[-12, 3, 12]}  color="#aaccee" intensity={4.0} distance={18} decay={2} />
-      <pointLight position={[12,  3, 12]}  color="#aaccee" intensity={4.0} distance={18} decay={2} />
+      <pointLight position={[12, 3, -12]} color="#aaccee" intensity={4.0} distance={18} decay={2} />
+      <pointLight position={[-12, 3, 12]} color="#aaccee" intensity={4.0} distance={18} decay={2} />
+      <pointLight position={[12, 3, 12]} color="#aaccee" intensity={4.0} distance={18} decay={2} />
 
-      {/* Mid-wall fill — lights the wall surfaces directly */}
-      <pointLight position={[0,  2.5, -13]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
-      <pointLight position={[0,  2.5, 13]}  color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
+      <pointLight position={[0, 2.5, -13]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
+      <pointLight position={[0, 2.5, 13]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
       <pointLight position={[-13, 2.5, 0]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
-      <pointLight position={[13,  2.5, 0]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
+      <pointLight position={[13, 2.5, 0]} color="#c0d8f0" intensity={3.0} distance={12} decay={2} />
 
-      {/* Vault-Tec yellow accent glow */}
       <pointLight position={[0, 1.1, -13]} color="#ffd040" intensity={1.4} distance={12} decay={2} />
-      <pointLight position={[0, 1.1, 13]}  color="#ffd040" intensity={1.4} distance={12} decay={2} />
+      <pointLight position={[0, 1.1, 13]} color="#ffd040" intensity={1.4} distance={12} decay={2} />
       <pointLight position={[-13, 1.1, 0]} color="#ffd040" intensity={1.4} distance={12} decay={2} />
-      <pointLight position={[13, 1.1, 0]}  color="#ffd040" intensity={1.4} distance={12} decay={2} />
+      <pointLight position={[13, 1.1, 0]} color="#ffd040" intensity={1.4} distance={12} decay={2} />
 
-      {/* Radiation zone glow */}
-      <pointLight position={[13, 0.5, 4]}   color="#ff4400" intensity={1.4} distance={7}  decay={2} />
-      <pointLight position={[-12, 0.5, -8]} color="#00ffaa" intensity={0.9} distance={6}  decay={2} />
-      <pointLight position={[12, 0.5, -8]}  color="#ffaa00" intensity={0.9} distance={6}  decay={2} />
+      <pointLight position={[13, 0.5, 4]} color="#ff4400" intensity={1.4} distance={7} decay={2} />
+      <pointLight position={[-12, 0.5, -8]} color="#00ffaa" intensity={0.9} distance={6} decay={2} />
+      <pointLight position={[12, 0.5, -8]} color="#ffaa00" intensity={0.9} distance={6} decay={2} />
 
-      {/* Fog — light so far walls are always visible */}
       <fog attach="fog" args={['#0a1018', 22, 40]} />
 
       <Suspense fallback={null}>
         <Room />
         <CryoTube3D introStep={introStep} />
+        <VaultGirlInCryo />
       </Suspense>
 
       {TERMINALS_3D.map(t => (
