@@ -13,7 +13,7 @@ const VAULT_GIRL_IMAGES = {
 };
 
 
-function getCompanionState()
+function getCompanionState({
   pnl,
   positions,
   lossStreak,
