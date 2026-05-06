@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 const VAULT_GIRL_IMAGES = {
-  cryo: "/companion/vaultgirl/vaultgirl_cryo.png",
-  idle: "/companion/vaultgirl/vaultgirl_idle.png",
-  happy: "/companion/vaultgirl/vaultgirl_happy.png",
-  sick: "/companion/vaultgirl/vaultgirl_sick.png",
-  thriving: "/companion/vaultgirl/vaultgirl_thriving.png",
-  weak: "/companion/vaultgirl/vaultgirl_weak.png",
-  zombie: "/companion/vaultgirl/vaultgirl_zombie.png",
+  cryo: "/companion/vaultgirl/vaultgirl_cryo..png",
+  idle: "/companion/vaultgirl/vaultgirl_idle..png",
+  happy: "/companion/vaultgirl/vaultgirl_happy..png",
+  sick: "/companion/vaultgirl/vaultgirl_sick..png",
+  thriving: "/companion/vaultgirl/vaultgirl_thriving..png",
+  weak: "/companion/vaultgirl/vaultgirl_weak..png",
+  zombie: "/companion/vaultgirl/vaultgirl_zombie..png",
 };
 
-function getCompanionState({
+
+function getCompanionState()
   pnl,
   positions,
   lossStreak,
